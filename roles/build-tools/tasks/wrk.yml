@@ -1,0 +1,13 @@
+---
+- name: Clone wrk
+  ansible.builtin.git:
+    repo: https://github.com/wg/wrk.git
+    dest: "{{ wrk_install_dir }}/wrk"
+    version: HEAD
+    update: false
+
+- name: Build wrk
+  ansible.builtin.command:
+    cmd: make
+    chdir: "{{ wrk_install_dir }}/wrk"
+    creates: "{{ wrk_install_dir }}/wrk/wrk"

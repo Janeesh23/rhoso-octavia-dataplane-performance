@@ -1,0 +1,13 @@
+---
+os_cloud: default
+
+image_name: centos-9-stream
+image_url: "https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2"
+image_filename: CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2
+image_container_format: bare
+image_disk_format: qcow2
+image_properties:
+  hw_vif_multiqueue_enabled: "True"
+
+image_wait_retries: 60
+image_wait_delay: 2

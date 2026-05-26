@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: prepare-image
+  author: your name
+  description: Download and create an OpenStack image
+  license: Apache-2.0
+  min_ansible_version: "2.9"
+  platforms: []
+  galaxy_tags: []
+
+dependencies: []

@@ -1,0 +1,9 @@
+---
+os_cloud: default
+
+h2load_bin: ~/nghttp2/src/h2load
+wrk_bin: ~/wrk/wrk
+
+results_base_dir: ~/results
+delay_between_tests: 300
+num_runs: 1

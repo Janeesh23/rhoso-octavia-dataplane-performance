@@ -1,0 +1,34 @@
+---
+- name: Install EPEL release
+  ansible.builtin.dnf:
+    name: epel-release
+    state: present
+
+- name: Enable CRB repository
+  ansible.builtin.command:
+    cmd: dnf config-manager --set-enabled crb
+  changed_when: false
+
+- name: Install required packages
+  ansible.builtin.dnf:
+    name:
+      - make
+      - git
+      - gcc
+      - gcc-c++
+      - autoconf
+      - automake
+      - libtool
+      - python3-devel
+      - libev-devel
+      - c-ares-devel
+      - openssl-devel
+      - zlib-devel
+      - iperf
+      - nginx
+      - dnsmasq
+      - unzip
+      - perl-FindBin
+      - policycoreutils-python-utils
+      - gcc-toolset-13
+    state: present

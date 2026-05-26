@@ -1,0 +1,10 @@
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+dir               = {{ cert_dir }}
+crl_dir           = $dir/crl
+database          = $dir/crl/index.txt
+crlnumber         = $dir/crl/crlnumber
+default_crl_days  = 30
+default_md        = sha256

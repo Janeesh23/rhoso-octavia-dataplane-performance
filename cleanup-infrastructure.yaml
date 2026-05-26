@@ -1,0 +1,7 @@
+---
+- name: Clean up all setup resources
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - cleanup

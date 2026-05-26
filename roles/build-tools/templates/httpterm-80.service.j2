@@ -1,0 +1,10 @@
+[Unit]
+Description=HTTPTerm port 80
+After=network.target
+
+[Service]
+ExecStart=sh -c "for i in 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do taskset -c 2-15 {{ httpterm_install_dir }}/httpterm/httpterm -D -L :80; done"
+Type=forking
+
+[Install]
+WantedBy=multi-user.target

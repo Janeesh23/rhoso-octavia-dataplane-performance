@@ -1,0 +1,231 @@
+---
+# ============================================================
+# amphora-http
+# ============================================================
+- name: "amphora-http: Create load balancer"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [amphora-http, amphora-http2-clear]
+  roles:
+    - amphora-http
+
+- name: "amphora-http: Run workloads on client"
+  hosts: client
+  gather_facts: false
+  tags: [amphora-http]
+  vars:
+    workload_name: amphora-http
+    workload_tests:
+      - name: http-0b-keepalive
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'http://{{ vip }}/'"
+      - name: http-0b-nokeepalive
+        cmd: "{{ h2load_bin }} -t15 -n100000 --warm-up-time 30 -c750 --h1 -H 'Connection: close' 'http://{{ vip }}/'"
+      - name: http-128b
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=128'"
+      - name: http-1k
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=1k'"
+      - name: http-10k
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=10k'"
+      - name: http-128k
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=128k'"
+      - name: http-512k
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=512k'"
+      - name: http-1m
+        cmd: "{{ wrk_bin }} -t15 -d120 -c150 'http://{{ vip }}/?s=1m'"
+  roles:
+    - run-workload
+
+# ============================================================
+# amphora-http2-clear (reuses amphora-http LB)
+# ============================================================
+- name: "amphora-http2-clear: Run workloads on client"
+  hosts: client
+  gather_facts: false
+  tags: [amphora-http2-clear]
+  vars:
+    workload_name: amphora-http2-clear
+    workload_tests:
+      - name: http2-clear-0b-keepalive
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'http://{{ vip }}/'"
+      - name: http2-clear-0b-nokeepalive
+        cmd: "{{ h2load_bin }} -t15 -n100000 --warm-up-time 30 -c750 -H 'Connection: close' 'http://{{ vip }}/'"
+      - name: http2-clear-128b
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'http://{{ vip }}/?s=128'"
+      - name: http2-clear-1k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'http://{{ vip }}/?s=1k'"
+      - name: http2-clear-10k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'http://{{ vip }}/?s=10k'"
+      - name: http2-clear-128k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'http://{{ vip }}/?s=128k'"
+      - name: http2-clear-512k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'http://{{ vip }}/?s=512k'"
+      - name: http2-clear-1m
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c150 'http://{{ vip }}/?s=1m'"
+  roles:
+    - run-workload
+
+# ============================================================
+# amphora-http-503  (empty pool — all requests return 503)
+# ============================================================
+- name: "amphora-http-503: Create load balancer"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [amphora-http-503]
+  roles:
+    - amphora-http-503
+
+- name: "amphora-http-503: Run workloads on client"
+  hosts: client
+  gather_facts: false
+  tags: [amphora-http-503]
+  vars:
+    workload_name: amphora-http-503
+    workload_tests:
+      - name: http-0b-keepalive
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'http://{{ vip }}/'"
+      - name: http-0b-nokeepalive
+        cmd: "{{ h2load_bin }} -t15 -n100000 --warm-up-time 30 -c750 --h1 -H 'Connection: close' 'http://{{ vip }}/'"
+  roles:
+    - run-workload
+
+# ============================================================
+# amphora-tcp
+# ============================================================
+- name: "amphora-tcp: Create load balancer"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [amphora-tcp]
+  roles:
+    - amphora-tcp
+
+- name: "amphora-tcp: Run workloads on client"
+  hosts: client
+  gather_facts: false
+  tags: [amphora-tcp]
+  vars:
+    workload_name: amphora-tcp
+    workload_tests:
+      - name: http-0b-keepalive
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'http://{{ vip }}/'"
+      - name: http-0b-nokeepalive
+        cmd: "{{ h2load_bin }} -t15 -n100000 --warm-up-time 30 -c750 --h1 -H 'Connection: close' 'http://{{ vip }}/'"
+      - name: http-128b
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=128'"
+      - name: http-1k
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=1k'"
+      - name: http-10k
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=10k'"
+      - name: http-128k
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=128k'"
+      - name: http-512k
+        cmd: "{{ wrk_bin }} -t15 -d120 -c750 'http://{{ vip }}/?s=512k'"
+      - name: http-1m
+        cmd: "{{ wrk_bin }} -t15 -d120 -c150 'http://{{ vip }}/?s=1m'"
+  roles:
+    - run-workload
+
+# ============================================================
+# amphora-https
+# ============================================================
+- name: "amphora-https: Create load balancer"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [amphora-https, amphora-http2]
+  roles:
+    - amphora-https
+
+- name: "amphora-https: Run workloads on client"
+  hosts: client
+  gather_facts: false
+  tags: [amphora-https]
+  vars:
+    workload_name: amphora-https
+    workload_tests:
+      - name: https-0b-keepalive
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/'"
+      - name: https-0b-nokeepalive
+        cmd: "{{ h2load_bin }} -t15 -n100000 --warm-up-time 30 -c750 --h1 -H 'Connection: close' 'https://{{ vip }}/'"
+      - name: https-128b
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/?s=128'"
+      - name: https-1k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/?s=1k'"
+      - name: https-10k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/?s=10k'"
+      - name: https-128k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/?s=128k'"
+      - name: https-512k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/?s=512k'"
+      - name: https-1m
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c150 --h1 'https://{{ vip }}/?s=1m'"
+  roles:
+    - run-workload
+
+# ============================================================
+# amphora-http2 (reuses amphora-https LB)
+# ============================================================
+- name: "amphora-http2: Run workloads on client"
+  hosts: client
+  gather_facts: false
+  tags: [amphora-http2]
+  vars:
+    workload_name: amphora-http2
+    workload_tests:
+      - name: http2-0b-keepalive
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'https://{{ vip }}/'"
+      - name: http2-0b-nokeepalive
+        cmd: "{{ h2load_bin }} -t15 -n100000 --warm-up-time 30 -c750 -H 'Connection: close' 'https://{{ vip }}/'"
+      - name: http2-128b
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'https://{{ vip }}/?s=128'"
+      - name: http2-1k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'https://{{ vip }}/?s=1k'"
+      - name: http2-10k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'https://{{ vip }}/?s=10k'"
+      - name: http2-128k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'https://{{ vip }}/?s=128k'"
+      - name: http2-512k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 'https://{{ vip }}/?s=512k'"
+      - name: http2-1m
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c150 'https://{{ vip }}/?s=1m'"
+  roles:
+    - run-workload
+
+# ============================================================
+# amphora-https-reencryption
+# ============================================================
+- name: "amphora-https-reencryption: Create load balancer"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [amphora-https-reencryption]
+  roles:
+    - amphora-https-reencryption
+
+- name: "amphora-https-reencryption: Run workloads on client"
+  hosts: client
+  gather_facts: false
+  tags: [amphora-https-reencryption]
+  vars:
+    workload_name: amphora-https-reencryption
+    workload_tests:
+      - name: https-reencrypt-0b-keepalive
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/data/0'"
+      - name: https-reencrypt-0b-nokeepalive
+        cmd: "{{ h2load_bin }} -t15 -n100000 --warm-up-time 30 -c750 --h1 -H 'Connection: close' 'https://{{ vip }}/data/0'"
+      - name: https-reencrypt-128b
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/data/128'"
+      - name: https-reencrypt-1k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/data/1024'"
+      - name: https-reencrypt-10k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/data/10240'"
+      - name: https-reencrypt-128k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/data/131072'"
+      - name: https-reencrypt-512k
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c750 --h1 'https://{{ vip }}/data/524288'"
+      - name: https-reencrypt-1m
+        cmd: "{{ h2load_bin }} -t15 -D120s --warm-up-time 30 -c150 --h1 'https://{{ vip }}/data/1048576'"
+  roles:
+    - run-workload

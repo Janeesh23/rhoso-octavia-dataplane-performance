@@ -1,0 +1,6 @@
+---
+galaxy_info:
+  role_name: cert-generation
+  description: Generate self-signed CA, server, and client TLS certificates
+  min_ansible_version: "2.14"
+dependencies: []

@@ -1,0 +1,333 @@
+---
+# --- Step 1: Delete servers and their floating IPs ---
+
+- name: Get client server fixed IPs
+  ansible.builtin.shell:
+    cmd: >-
+      openstack port list --os-cloud {{ os_cloud }} --server {{ item }}
+      -f value -c "Fixed IP Addresses" | grep -oP '\d+\.\d+\.\d+\.\d+'
+    executable: /bin/bash
+  loop: "{{ client_names }}"
+  register: client_fixed_ips
+  changed_when: false
+  failed_when: false
+
+- name: Get floating IPs associated with clients
+  ansible.builtin.command:
+    cmd: >-
+      openstack floating ip list --os-cloud {{ os_cloud }}
+      --fixed-ip-address {{ item.stdout | trim }}
+      -f value -c ID
+  loop: "{{ client_fixed_ips.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  register: client_fip_ids
+  changed_when: false
+  failed_when: false
+  when: item.stdout | default('') | trim != ''
+
+- name: Delete client servers
+  openstack.cloud.server:
+    cloud: "{{ os_cloud }}"
+    name: "{{ item }}"
+    state: absent
+    wait: true
+  loop: "{{ client_names }}"
+  ignore_errors: true
+
+- name: Delete client floating IPs
+  ansible.builtin.command:
+    cmd: openstack floating ip delete --os-cloud {{ os_cloud }} {{ item.stdout | trim }}
+  loop: "{{ client_fip_ids.results }}"
+  loop_control:
+    label: "{{ item.item.item | default('unknown') }}"
+  when: item.stdout | default('') | trim != ''
+  failed_when: false
+
+- name: Get member server fixed IPs
+  ansible.builtin.shell:
+    cmd: >-
+      openstack port list --os-cloud {{ os_cloud }} --server {{ item }}
+      -f value -c "Fixed IP Addresses" | grep -oP '\d+\.\d+\.\d+\.\d+'
+    executable: /bin/bash
+  loop: "{{ member_names }}"
+  register: member_fixed_ips
+  changed_when: false
+  failed_when: false
+
+- name: Get floating IPs associated with members
+  ansible.builtin.command:
+    cmd: >-
+      openstack floating ip list --os-cloud {{ os_cloud }}
+      --fixed-ip-address {{ item.stdout | trim }}
+      -f value -c ID
+  loop: "{{ member_fixed_ips.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  register: member_fip_ids
+  changed_when: false
+  failed_when: false
+  when: item.stdout | default('') | trim != ''
+
+- name: Delete member servers
+  openstack.cloud.server:
+    cloud: "{{ os_cloud }}"
+    name: "{{ item }}"
+    state: absent
+    wait: true
+  loop: "{{ member_names }}"
+  ignore_errors: true
+
+- name: Delete member floating IPs
+  ansible.builtin.command:
+    cmd: openstack floating ip delete --os-cloud {{ os_cloud }} {{ item.stdout | trim }}
+  loop: "{{ member_fip_ids.results }}"
+  loop_control:
+    label: "{{ item.item.item | default('unknown') }}"
+  when: item.stdout | default('') | trim != ''
+  failed_when: false
+
+- name: Get all remaining floating IPs
+  ansible.builtin.shell:
+    cmd: openstack floating ip list --os-cloud {{ os_cloud }} -f value -c ID
+  register: all_fip_ids
+  changed_when: false
+  failed_when: false
+
+- name: Delete all remaining floating IPs
+  ansible.builtin.command:
+    cmd: openstack floating ip delete --os-cloud {{ os_cloud }} {{ item }}
+  loop: "{{ all_fip_ids.stdout_lines }}"
+  failed_when: false
+
+# --- Step 2: Delete security groups and keypair ---
+
+- name: Delete security groups
+  openstack.cloud.security_group:
+    cloud: "{{ os_cloud }}"
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ security_groups }}"
+  ignore_errors: true
+
+- name: Delete OpenStack keypair
+  openstack.cloud.keypair:
+    cloud: "{{ os_cloud }}"
+    name: "{{ keypair_name }}"
+    state: absent
+  ignore_errors: true
+
+# --- Step 3: Delete router and networks ---
+
+- name: Delete router
+  openstack.cloud.router:
+    cloud: "{{ os_cloud }}"
+    name: "{{ router_name }}"
+    state: absent
+  ignore_errors: true
+
+- name: Delete VIP subnet
+  openstack.cloud.subnet:
+    cloud: "{{ os_cloud }}"
+    name: "{{ vip_subnet_name }}"
+    state: absent
+  ignore_errors: true
+
+- name: Delete VIP network
+  openstack.cloud.network:
+    cloud: "{{ os_cloud }}"
+    name: "{{ vip_network_name }}"
+    state: absent
+  ignore_errors: true
+
+- name: Delete member subnet
+  openstack.cloud.subnet:
+    cloud: "{{ os_cloud }}"
+    name: "{{ member_subnet_name }}"
+    state: absent
+  ignore_errors: true
+
+- name: Delete member network
+  openstack.cloud.network:
+    cloud: "{{ os_cloud }}"
+    name: "{{ member_network_name }}"
+    state: absent
+  ignore_errors: true
+
+- name: Delete public subnet
+  openstack.cloud.subnet:
+    cloud: "{{ os_cloud }}"
+    name: "{{ public_subnet_name }}"
+    state: absent
+  ignore_errors: true
+
+- name: Delete public network
+  openstack.cloud.network:
+    cloud: "{{ os_cloud }}"
+    name: "{{ public_network_name }}"
+    state: absent
+  ignore_errors: true
+
+- name: Delete subnet pool
+  openstack.cloud.subnet_pool:
+    cloud: "{{ os_cloud }}"
+    name: "{{ subnet_pool_name }}"
+    state: absent
+  ignore_errors: true
+
+# --- Step 4: Delete Glance image ---
+
+- name: Delete image
+  openstack.cloud.image:
+    cloud: "{{ os_cloud }}"
+    name: "{{ image_name }}"
+    state: absent
+  ignore_errors: true
+
+# --- Step 5: Delete load balancer ---
+
+- name: Delete load balancer
+  ansible.builtin.command:
+    cmd: openstack loadbalancer delete --os-cloud {{ os_cloud }} {{ lb_name }} --cascade --wait
+  failed_when: false
+
+# --- Step 6: Delete Octavia availability zone and profile ---
+
+- name: Delete Octavia availability zone
+  ansible.builtin.command:
+    cmd: openstack loadbalancer availabilityzone delete --os-cloud {{ os_cloud }} {{ octavia_az_name }}
+  failed_when: false
+
+- name: Get all Octavia availability zone profile IDs
+  ansible.builtin.shell:
+    cmd: >-
+      openstack loadbalancer availabilityzoneprofile list --os-cloud {{ os_cloud }}
+      -f value -c id -c name | awk '$2 == "{{ octavia_az_profile_name }}" { print $1 }'
+  register: az_profile_ids
+  changed_when: false
+  failed_when: false
+
+- name: Delete all Octavia availability zone profiles
+  ansible.builtin.command:
+    cmd: openstack loadbalancer availabilityzoneprofile delete --os-cloud {{ os_cloud }} {{ item }}
+  loop: "{{ az_profile_ids.stdout_lines }}"
+  failed_when: false
+
+# --- Step 7: Delete Octavia LB flavors, profiles, and Nova flavors ---
+
+- name: Delete Octavia flavors
+  ansible.builtin.command:
+    cmd: openstack loadbalancer flavor delete --os-cloud {{ os_cloud }} {{ item }}
+  loop: "{{ octavia_flavors }}"
+  failed_when: false
+
+- name: Delete Octavia flavor profiles
+  ansible.builtin.command:
+    cmd: openstack loadbalancer flavorprofile delete --os-cloud {{ os_cloud }} {{ item }}
+  loop: "{{ octavia_flavor_profiles }}"
+  failed_when: false
+
+- name: Delete amphora Nova flavors
+  openstack.cloud.compute_flavor:
+    cloud: "{{ os_cloud }}"
+    name: "amphora-{{ item }}vcpus"
+    state: absent
+  loop: "{{ amphora_vcpu_counts }}"
+  ignore_errors: true
+
+- name: Delete compute flavors
+  openstack.cloud.compute_flavor:
+    cloud: "{{ os_cloud }}"
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ compute_flavors }}"
+  ignore_errors: true
+
+# --- Step 8: Delete Barbican secret ---
+
+- name: Get Barbican secret URI
+  ansible.builtin.command:
+    cmd: >-
+      openstack secret list --os-cloud {{ os_cloud }}
+      --name {{ barbican_secret_name }} -f value -c "Secret href"
+  register: secret_href
+  changed_when: false
+  failed_when: false
+
+- name: Delete Barbican secret
+  ansible.builtin.command:
+    cmd: openstack secret delete --os-cloud {{ os_cloud }} {{ secret_href.stdout | trim }}
+  when: secret_href.stdout | default('') | trim != ''
+  failed_when: false
+
+# --- Step 9: Delete host aggregates ---
+
+- name: Build list of availability zones
+  ansible.builtin.set_fact:
+    az_list: >-
+      {{ [client_az] +
+         (range(1, member_count + 1) | map('regex_replace', '^(.*)$', 'member\1_az') | list) +
+         [octavia_az] }}
+
+- name: Get hosts in each aggregate
+  ansible.builtin.shell:
+    cmd: >-
+      openstack aggregate show --os-cloud {{ os_cloud }} {{ item }} -f json
+      | python3 -c "import sys,json; print('\n'.join(json.loads(sys.stdin.read()).get('hosts', [])))"
+    executable: /bin/bash
+  loop: "{{ az_list }}"
+  register: aggregate_hosts
+  changed_when: false
+  failed_when: false
+
+- name: Remove hosts from aggregates
+  ansible.builtin.command:
+    cmd: >-
+      openstack aggregate remove host --os-cloud {{ os_cloud }}
+      {{ item.0.item }} {{ item.1 }}
+  loop: "{{ aggregate_hosts.results | subelements('stdout_lines', skip_missing=True) }}"
+  loop_control:
+    label: "Remove {{ item.1 }} from {{ item.0.item }}"
+  failed_when: false
+
+- name: Delete host aggregates
+  ansible.builtin.command:
+    cmd: openstack aggregate delete --os-cloud {{ os_cloud }} {{ item }}
+  loop: "{{ az_list }}"
+  failed_when: false
+
+# --- Step 10: Clean up local files ---
+
+- name: Remove TLS certificate directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ cert_dirs }}"
+
+- name: Remove SSH keypair files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ keypair_private_key_path }}"
+    - "{{ keypair_public_key_path }}"
+
+- name: Remove SSH config entries for servers
+  ansible.builtin.blockinfile:
+    path: ~/.ssh/config
+    marker: "# {mark} MANAGED BY ANSIBLE - {{ item }}"
+    state: absent
+  loop: "{{ client_names + member_names }}"
+  ignore_errors: true
+
+- name: Remove /etc/hosts entries for servers
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^.*\\s+{{ item }}$"
+    state: absent
+  loop: "{{ client_names + member_names }}"
+  ignore_errors: true
+
+- name: Cleanup complete
+  ansible.builtin.debug:
+    msg: "All resources created by setup-infrastructure.yaml have been removed."

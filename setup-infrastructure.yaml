@@ -1,0 +1,199 @@
+---
+- name: Install OpenStack CLI dependencies
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Install python3-openstackclient
+      ansible.builtin.pip:
+        name: python3-openstackclient
+
+- name: Create OpenStack networks and router
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - create-network
+
+- name: Create availability zones
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - create-az
+
+- name: Prepare OpenStack image
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - prepare-image
+
+- name: Set up client infrastructure and VMs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - client
+
+- name: Set up member infrastructure and VMs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - member
+
+- name: Generate member TLS certificates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: cert-generation
+      vars:
+        cert_dir: /tmp/member_certs
+
+- name: Generate LB TLS certificates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: cert-generation
+      vars:
+        cert_dir: /tmp/lb_certs
+
+- name: Store TLS secret in Barbican
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - barbican-secret
+
+- name: Create load balancer flavors
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - create-flavor
+
+- name: Build dynamic inventory of all servers
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    os_cloud: default
+    client_names:
+      - kakashi-client1
+    client_network_name: vip-network
+    member_names:
+      - naruto-member1
+      - sasuke-member2
+      - sakura-member3
+    member_network_name: member-network
+    keypair_private_key_path: "~/.ssh/id_rsa.me"
+  tasks:
+    - name: Get client server fixed IPs
+      ansible.builtin.shell:
+        cmd: openstack port list --os-cloud {{ os_cloud }} --server {{ item }} -f value -c "Fixed IP Addresses" | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1
+      loop: "{{ client_names }}"
+      register: client_fixed_ips
+      changed_when: false
+
+    - name: Get client server floating IPs
+      ansible.builtin.command:
+        cmd: openstack floating ip list --os-cloud {{ os_cloud }} --fixed-ip-address {{ item.stdout | trim }} -f value -c "Floating IP Address"
+      loop: "{{ client_fixed_ips.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: client_fips
+      changed_when: false
+
+    - name: Get member server fixed IPs
+      ansible.builtin.shell:
+        cmd: openstack port list --os-cloud {{ os_cloud }} --server {{ item }} -f value -c "Fixed IP Addresses" | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1
+      loop: "{{ member_names }}"
+      register: member_fixed_ips
+      changed_when: false
+
+    - name: Get member server floating IPs
+      ansible.builtin.command:
+        cmd: openstack floating ip list --os-cloud {{ os_cloud }} --fixed-ip-address {{ item.stdout | trim }} -f value -c "Floating IP Address"
+      loop: "{{ member_fixed_ips.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: member_fips
+      changed_when: false
+
+    - name: Collect all private IPs for /etc/hosts
+      ansible.builtin.set_fact:
+        server_hosts_entries: >-
+          [
+          {% for i in range(client_names | length) %}
+            {"name": "{{ client_names[i] }}", "ip": "{{ client_fixed_ips.results[i].stdout | regex_search('\\d+\\.\\d+\\.\\d+\\.\\d+') }}"},
+          {% endfor %}
+          {% for i in range(member_names | length) %}
+            {"name": "{{ member_names[i] }}", "ip": "{{ member_fixed_ips.results[i].stdout | regex_search('\\d+\\.\\d+\\.\\d+\\.\\d+') }}"},
+          {% endfor %}
+          ]
+
+    - name: Add client VMs to inventory
+      ansible.builtin.add_host:
+        name: "{{ item.0 }}"
+        groups: all_servers
+        ansible_host: "{{ item.1.stdout | trim }}"
+        ansible_user: cloud-user
+        ansible_ssh_private_key_file: "{{ keypair_private_key_path }}"
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+        private_ip: "{{ client_fixed_ips.results[idx].stdout | regex_search('\\d+\\.\\d+\\.\\d+\\.\\d+') }}"
+        all_server_entries: "{{ server_hosts_entries }}"
+      loop: "{{ client_names | zip(client_fips.results) | list }}"
+      loop_control:
+        label: "{{ item.0 }}"
+        index_var: idx
+
+    - name: Add member VMs to inventory
+      ansible.builtin.add_host:
+        name: "{{ item.0 }}"
+        groups: all_servers
+        ansible_host: "{{ item.1.stdout | trim }}"
+        ansible_user: cloud-user
+        ansible_ssh_private_key_file: "{{ keypair_private_key_path }}"
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+        private_ip: "{{ member_fixed_ips.results[idx].stdout | regex_search('\\d+\\.\\d+\\.\\d+\\.\\d+') }}"
+        all_server_entries: "{{ server_hosts_entries }}"
+      loop: "{{ member_names | zip(member_fips.results) | list }}"
+      loop_control:
+        label: "{{ item.0 }}"
+        index_var: idx
+
+    - name: Generate ~/.ssh/config for easy SSH access
+      ansible.builtin.blockinfile:
+        path: ~/.ssh/config
+        create: true
+        mode: "0600"
+        marker: "# {mark} MANAGED BY ANSIBLE - {{ item.0 }}"
+        block: |
+          Host {{ item.0 }} {{ item.1.stdout | trim }}
+              HostName {{ item.1.stdout | trim }}
+              User cloud-user
+              IdentityFile {{ keypair_private_key_path }}
+              StrictHostKeyChecking no
+      loop: "{{ (client_names + member_names) | zip((client_fips.results + member_fips.results)) | list }}"
+      loop_control:
+        label: "{{ item.0 }}"
+
+- name: Wait for all servers to become reachable
+  hosts: all_servers
+  gather_facts: false
+  tasks:
+    - name: Wait for SSH connectivity
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+        delay: 10
+        sleep: 10
+
+- name: Install tools and configure services on all servers
+  hosts: all_servers
+  become: true
+  gather_facts: false
+  roles:
+    - build-tools

@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: amphora-http-503
+  author: your name
+  description: Create an Octavia HTTP load balancer with an empty pool (503 baseline)
+  license: Apache-2.0
+  min_ansible_version: "2.9"
+  platforms: []
+  galaxy_tags: []
+
+dependencies: []

@@ -1,0 +1,147 @@
+---
+- name: Delete security group if it exists
+  openstack.cloud.security_group:
+    cloud: "{{ os_cloud }}"
+    name: "{{ security_group_name }}"
+    state: absent
+  ignore_errors: true
+
+- name: Create security group
+  openstack.cloud.security_group:
+    cloud: "{{ os_cloud }}"
+    name: "{{ security_group_name }}"
+    state: present
+
+- name: Create security group rules
+  openstack.cloud.security_group_rule:
+    cloud: "{{ os_cloud }}"
+    security_group: "{{ security_group_name }}"
+    protocol: "{{ item.protocol }}"
+    port_range_min: "{{ item.port_range_min | default(omit) }}"
+    port_range_max: "{{ item.port_range_max | default(omit) }}"
+    direction: "{{ item.direction }}"
+    state: present
+  loop: "{{ security_group_rules }}"
+
+- name: Generate SSH keypair if not present
+  community.crypto.openssh_keypair:
+    path: "{{ keypair_private_key_path }}"
+    type: rsa
+    size: 4096
+    state: present
+
+- name: Read public key
+  ansible.builtin.slurp:
+    src: "{{ keypair_public_key_path }}"
+  register: pubkey_content
+
+- name: Create OpenStack keypair
+  openstack.cloud.keypair:
+    cloud: "{{ os_cloud }}"
+    name: "{{ keypair_name }}"
+    public_key: "{{ pubkey_content.content | b64decode }}"
+    state: present
+
+- name: Get image ID
+  openstack.cloud.image_info:
+    cloud: "{{ os_cloud }}"
+    image: "{{ image_name }}"
+  register: image_info
+
+- name: Get network ID
+  openstack.cloud.networks_info:
+    cloud: "{{ os_cloud }}"
+    name: "{{ member_network_name }}"
+  register: member_network_info
+
+# Delete existing member servers
+- name: Delete member servers if they exist
+  openstack.cloud.server:
+    cloud: "{{ os_cloud }}"
+    name: "{{ item }}"
+    state: absent
+    wait: true
+  loop: "{{ member_names }}"
+  ignore_errors: true
+
+# Recreate member servers
+- name: Create member servers
+  openstack.cloud.server:
+    cloud: "{{ os_cloud }}"
+    name: "{{ item }}"
+    image: "{{ image_info.images[0].id }}"
+    flavor: "{{ flavor_name }}"
+    network: "{{ member_network_info.networks[0].id }}"
+    key_name: "{{ keypair_name }}"
+    security_groups:
+      - "{{ security_group_name }}"
+    availability_zone: "member{{ idx + 1 }}_az"
+    wait: true
+    state: present
+  loop: "{{ member_names }}"
+  loop_control:
+    index_var: idx
+  register: member_servers
+
+- name: Get member server port IDs
+  ansible.builtin.command:
+    cmd: openstack port list --os-cloud {{ os_cloud }} --server {{ item }} -f value -c ID
+  loop: "{{ member_names }}"
+  register: member_ports
+  changed_when: false
+
+- name: Check for existing floating IPs on member ports
+  ansible.builtin.command:
+    cmd: openstack floating ip list --os-cloud {{ os_cloud }} --port {{ item.stdout | trim }} -f value -c "Floating IP Address"
+  loop: "{{ member_ports.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  register: member_existing_fips
+  changed_when: false
+
+- name: Create floating IPs for member servers that need one
+  ansible.builtin.command:
+    cmd: openstack floating ip create --os-cloud {{ os_cloud }} -f value -c floating_ip_address {{ external_network_name }}
+  loop: "{{ member_names | zip(member_existing_fips.results) | list }}"
+  loop_control:
+    label: "{{ item.0 }}"
+  when: item.1.stdout | trim == ''
+  register: member_new_fips
+
+- name: Assign floating IPs to member servers
+  ansible.builtin.command:
+    cmd: openstack server add floating ip --os-cloud {{ os_cloud }} {{ item.0 }} {{ item.1.stdout | trim }}
+  loop: "{{ member_names | zip(member_new_fips.results) | list }}"
+  loop_control:
+    label: "{{ item.0 }}"
+  when: item.1 is not skipped
+  retries: 3
+  delay: 10
+  register: floating_ip_result
+  until: floating_ip_result is not failed
+
+- name: Get member server fixed IPs
+  ansible.builtin.shell:
+    cmd: openstack port list --os-cloud {{ os_cloud }} --server {{ item }} -f value -c "Fixed IP Addresses" | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1
+  loop: "{{ member_names }}"
+  register: member_fixed_ips
+  changed_when: false
+
+- name: Get member floating IPs for /etc/hosts
+  ansible.builtin.command:
+    cmd: openstack floating ip list --os-cloud {{ os_cloud }} --fixed-ip-address {{ item.stdout | trim }} -f value -c "Floating IP Address"
+  loop: "{{ member_fixed_ips.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  register: member_hosts_fips
+  changed_when: false
+
+- name: Add member entries to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^.*\\s+{{ item.0 }}$"
+    line: "{{ item.1.stdout | trim }} {{ item.0 }}"
+    state: present
+  loop: "{{ member_names | zip(member_hosts_fips.results) | list }}"
+  loop_control:
+    label: "{{ item.0 }}"

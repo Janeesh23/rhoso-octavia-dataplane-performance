@@ -1,0 +1,27 @@
+---
+- name: Clone httpterm
+  ansible.builtin.git:
+    repo: https://github.com/gthiemonge/httpterm.git
+    dest: "{{ httpterm_install_dir }}/httpterm"
+    version: HEAD
+    update: false
+
+- name: Build httpterm
+  ansible.builtin.command:
+    cmd: make -j4
+    chdir: "{{ httpterm_install_dir }}/httpterm"
+    creates: "{{ httpterm_install_dir }}/httpterm/httpterm"
+
+- name: Install httpterm-80 systemd unit
+  ansible.builtin.template:
+    src: httpterm-80.service.j2
+    dest: /usr/lib/systemd/system/httpterm-80.service
+    mode: "0644"
+  notify: reload systemd
+
+- name: Enable and start httpterm-80
+  ansible.builtin.systemd:
+    name: httpterm-80
+    enabled: true
+    state: restarted
+    daemon_reload: true

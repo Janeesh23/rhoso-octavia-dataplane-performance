@@ -1,0 +1,38 @@
+---
+os_cloud: default
+
+keypair_name: me
+keypair_private_key_path: "~/.ssh/id_rsa.me"
+keypair_public_key_path: "~/.ssh/id_rsa.me.pub"
+
+image_name: centos-9-stream
+flavor_name: f2
+client_network_name: vip-network
+external_network_name: public
+security_group_name: vip-sg
+client_az: client_az
+
+client_names:
+  - kakashi-client1
+
+flavors:
+  - name: f1
+    ram: 16384
+    vcpus: 16
+    disk: 10
+  - name: f2
+    ram: 32768
+    vcpus: 32
+    disk: 10
+
+security_group_rules:
+  - protocol: tcp
+    port_range_min: 22
+    port_range_max: 22
+    direction: ingress
+  - protocol: icmp
+    direction: ingress
+  - protocol: udp
+    port_range_min: 5201
+    port_range_max: 5201
+    direction: ingress

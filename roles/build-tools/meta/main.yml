@@ -1,0 +1,6 @@
+---
+galaxy_info:
+  role_name: build-tools
+  description: Install packages, build tools, and configure services on client/member VMs
+  min_ansible_version: "2.14"
+dependencies: []

@@ -1,0 +1,65 @@
+---
+os_cloud: default
+
+keypair_name: me
+keypair_private_key_path: "~/.ssh/id_rsa.me"
+keypair_public_key_path: "~/.ssh/id_rsa.me.pub"
+
+image_name: centos-9-stream
+flavor_name: f2
+member_network_name: member-network
+external_network_name: public
+security_group_name: member-sg
+
+member_names:
+  - naruto-member1
+  - sasuke-member2
+  - sakura-member3
+
+security_group_rules:
+  - protocol: icmp
+    direction: ingress
+  - protocol: tcp
+    port_range_min: 22
+    port_range_max: 22
+    direction: ingress
+  - protocol: tcp
+    port_range_min: 80
+    port_range_max: 80
+    direction: ingress
+  - protocol: tcp
+    port_range_min: 81
+    port_range_max: 81
+    direction: ingress
+  - protocol: tcp
+    port_range_min: 443
+    port_range_max: 443
+    direction: ingress
+  - protocol: tcp
+    port_range_min: 1443
+    port_range_max: 1443
+    direction: ingress
+  - protocol: tcp
+    port_range_min: 8000
+    port_range_max: 8000
+    direction: ingress
+  - protocol: udp
+    port_range_min: 8000
+    port_range_max: 8000
+    direction: ingress
+  - protocol: tcp
+    port_range_min: 8080
+    port_range_max: 8080
+    direction: ingress
+  - protocol: tcp
+    port_range_min: 5001
+    port_range_max: 5001
+    direction: ingress
+  - protocol: tcp
+    port_range_min: 5201
+    port_range_max: 5201
+    direction: ingress
+  - protocol: udp
+    port_range_min: 5201
+    port_range_max: 5201
+    direction: ingress

@@ -1,0 +1,30 @@
+---
+os_cloud: default
+
+subnet_pool_name: ipv4-pool
+subnet_pool_prefixes:
+  - 10.0.0.0/8
+subnet_pool_default_prefix_length: 24
+
+public_network_name: public
+public_network_type: vlan
+public_network_physical_network: datacentre
+public_network_segment: 19
+public_subnet_name: public-subnet
+public_subnet_cidr: 172.19.0.0/16
+public_subnet_allocation_pool_start: 172.19.0.10
+public_subnet_allocation_pool_end: 172.19.0.250
+
+dns_nameservers:
+  - 8.8.8.8
+  - 8.8.4.4
+
+vip_network_name: vip-network
+vip_subnet_name: vip-subnet
+vip_subnet_cidr: 10.0.1.0/24
+
+member_network_name: member-network
+member_subnet_name: member-subnet
+member_subnet_cidr: 10.0.2.0/24
+
+router_name: test-router

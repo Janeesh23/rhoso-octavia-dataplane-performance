@@ -1,0 +1,65 @@
+---
+- name: Resolve LB VIP address
+  ansible.builtin.command:
+    cmd: openstack loadbalancer show --os-cloud {{ os_cloud }} {{ lb_name }} -f value -c vip_address
+  register: vip_result
+  changed_when: false
+  delegate_to: localhost
+
+- name: Set VIP fact
+  ansible.builtin.set_fact:
+    vip: "{{ vip_result.stdout | trim }}"
+
+- name: Generate run timestamp
+  ansible.builtin.set_fact:
+    run_timestamp: "{{ now(fmt='%Y%m%d-%H%M%S') }}"
+
+- name: Set results directory
+  ansible.builtin.set_fact:
+    results_dir: "{{ results_base_dir }}/{{ workload_name }}-{{ run_timestamp }}"
+
+- name: Display results location
+  ansible.builtin.debug:
+    msg: "Results will be saved to {{ results_dir }}"
+
+- name: Run workload iteration
+  ansible.builtin.include_tasks: run_iteration.yml
+  loop: "{{ range(1, num_runs | int + 1) | list }}"
+  loop_control:
+    loop_var: run_number
+    label: "run {{ run_number }}/{{ num_runs }}"
+
+- name: Copy parse-results script to client
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/parse-results.py"
+    dest: "{{ results_dir }}/parse-results.py"
+    mode: "0755"
+
+- name: Parse results and generate CSV summary
+  ansible.builtin.command:
+    cmd: python3 {{ results_dir }}/parse-results.py {{ results_dir }} -o {{ results_dir }}/summary.csv
+  register: parse_output
+
+- name: Create local results directory
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/results/{{ workload_name }}-{{ run_timestamp }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+
+- name: Fetch results to local machine
+  ansible.posix.synchronize:
+    src: "{{ results_dir }}/"
+    dest: "{{ playbook_dir }}/results/{{ workload_name }}-{{ run_timestamp }}/"
+    mode: pull
+  delegate_to: localhost
+
+- name: Display summary
+  ansible.builtin.command:
+    cmd: cat {{ playbook_dir }}/results/{{ workload_name }}-{{ run_timestamp }}/summary.csv
+  register: summary_content
+  delegate_to: localhost
+
+- name: Show results
+  ansible.builtin.debug:
+    msg: "{{ summary_content.stdout_lines }}"

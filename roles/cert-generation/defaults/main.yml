@@ -1,0 +1,16 @@
+---
+cert_dir: /tmp/member_certs
+
+ca_passphrase: mypassphrase
+ca_common_name: CA
+ca_validity_days: 365
+
+server_common_name: localhost
+server_validity_days: 365
+
+client_common_name: user1
+client_validity_days: 365
+
+cert_country: FR
+cert_locality: Paris
+cert_org: myorg

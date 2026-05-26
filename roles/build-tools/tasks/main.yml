@@ -1,0 +1,24 @@
+---
+- name: Install packages
+  ansible.builtin.include_tasks: packages.yml
+
+- name: Copy certificates
+  ansible.builtin.include_tasks: certs.yml
+
+- name: Build and configure httpterm
+  ansible.builtin.include_tasks: httpterm.yml
+
+- name: Build nghttp2 (h2load)
+  ansible.builtin.include_tasks: nghttp2.yml
+
+- name: Build wrk
+  ansible.builtin.include_tasks: wrk.yml
+
+- name: Configure nginx with SSL and CPU pinning
+  ansible.builtin.include_tasks: nginx.yml
+
+- name: Configure iperf services
+  ansible.builtin.include_tasks: iperf.yml
+
+- name: Update /etc/hosts on each server
+  ansible.builtin.include_tasks: hosts.yml

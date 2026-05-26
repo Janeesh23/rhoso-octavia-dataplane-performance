@@ -1,0 +1,158 @@
+---
+# --- Discover active compute hosts ---
+
+- name: Get active nova-compute hosts
+  ansible.builtin.shell:
+    cmd: >-
+      openstack compute service list --os-cloud {{ os_cloud }}
+      --service nova-compute -f value -c Host -c State
+      | awk '$2 == "up" { print $1 }'
+  register: compute_hosts_raw
+  changed_when: false
+
+- name: Set active compute hosts list
+  ansible.builtin.set_fact:
+    active_computes: "{{ compute_hosts_raw.stdout_lines }}"
+
+# --- Build the full list of availability zones ---
+
+- name: Build list of availability zones
+  ansible.builtin.set_fact:
+    az_list: >-
+      {{ [client_az] +
+         (range(1, member_count + 1) | map('regex_replace', '^(.*)$', 'member\1_az') | list) +
+         [octavia_az] }}
+
+- name: Fail if not enough active computes for the requested AZs
+  ansible.builtin.fail:
+    msg: >-
+      Need {{ az_list | length }} active compute hosts (one per AZ) but only
+      {{ active_computes | length }} are up: {{ active_computes }}
+  when: active_computes | length < az_list | length
+
+# --- Map each AZ to one compute host (first-come-first-served) ---
+
+- name: Build AZ-to-host map
+  ansible.builtin.set_fact:
+    az_host_map: >-
+      {{ az_host_map | default({}) | combine({
+        item.0: item.1
+      }) }}
+  loop: "{{ az_list | zip(active_computes) | list }}"
+  loop_control:
+    label: "{{ item.0 }} -> {{ item.1 }}"
+
+# --- Step 1: Create host aggregates ---
+
+- name: Check existing host aggregates
+  ansible.builtin.command:
+    cmd: openstack aggregate show --os-cloud {{ os_cloud }} {{ item }} -f value -c id
+  loop: "{{ az_list }}"
+  register: aggregate_check
+  failed_when: false
+  changed_when: false
+
+- name: Create missing host aggregates
+  ansible.builtin.command:
+    cmd: >-
+      openstack aggregate create --os-cloud {{ os_cloud }}
+      --zone {{ item.item }}
+      {{ item.item }}
+  loop: "{{ aggregate_check.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.rc != 0
+
+# --- Step 2: Discover current host membership in each aggregate ---
+
+- name: Get current hosts in each aggregate
+  ansible.builtin.shell:
+    cmd: >-
+      openstack aggregate show --os-cloud {{ os_cloud }} {{ item }} -f json
+      | python3 -c "import sys,json; print('\n'.join(json.loads(sys.stdin.read()).get('hosts', [])))"
+  loop: "{{ az_list }}"
+  register: aggregate_hosts
+  changed_when: false
+
+- name: Build current aggregate-to-hosts map
+  ansible.builtin.set_fact:
+    current_az_hosts: >-
+      {{ current_az_hosts | default({}) | combine({
+        item.item: (item.stdout_lines | default([]))
+      }) }}
+  loop: "{{ aggregate_hosts.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# --- Step 3: Remove hosts that no longer belong to their current aggregate ---
+
+- name: Remove stale hosts from aggregates
+  ansible.builtin.command:
+    cmd: >-
+      openstack aggregate remove host --os-cloud {{ os_cloud }}
+      {{ item.0.key }} {{ item.1 }}
+  loop: "{{ current_az_hosts | dict2items | subelements('value') }}"
+  loop_control:
+    label: "Remove {{ item.1 }} from {{ item.0.key }}"
+  when: item.1 != az_host_map[item.0.key]
+
+# --- Step 4: Add compute hosts to their designated aggregates ---
+
+- name: Add compute hosts to aggregates
+  ansible.builtin.command:
+    cmd: >-
+      openstack aggregate add host --os-cloud {{ os_cloud }}
+      {{ item.key }} {{ item.value }}
+  loop: "{{ az_host_map | dict2items }}"
+  loop_control:
+    label: "Add {{ item.value }} to {{ item.key }}"
+  when: item.value not in (current_az_hosts[item.key] | default([]))
+
+# --- Step 5: Create Octavia load balancer availability zone profile and AZ ---
+
+- name: Get lb-mgmt-net network ID
+  ansible.builtin.command:
+    cmd: openstack network show --os-cloud {{ os_cloud }} {{ octavia_mgmt_network }} -f value -c id
+  register: mgmt_net_id
+  changed_when: false
+
+- name: Check if Octavia availability zone profile exists
+  ansible.builtin.shell:
+    cmd: >-
+      openstack loadbalancer availabilityzoneprofile list --os-cloud {{ os_cloud }}
+      -f value -c id -c name | awk '$2 == "{{ octavia_az_profile_name }}" { print $1; exit }'
+  register: az_profile_check
+  changed_when: false
+
+- name: Create Octavia availability zone profile
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer availabilityzoneprofile create --os-cloud {{ os_cloud }}
+      --name {{ octavia_az_profile_name }}
+      --provider amphora
+      --availability-zone-data '{"compute_zone": "{{ octavia_az }}", "management_network": "{{ mgmt_net_id.stdout | trim }}"}'
+  register: az_profile_create
+  when: az_profile_check.stdout | trim == ''
+
+- name: Set availability zone profile ID
+  ansible.builtin.set_fact:
+    az_profile_id: "{{ az_profile_check.stdout | trim if az_profile_check.stdout | trim != '' else az_profile_create.stdout | regex_search('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}') }}"
+
+- name: Check if Octavia availability zone exists
+  ansible.builtin.command:
+    cmd: openstack loadbalancer availabilityzone show --os-cloud {{ os_cloud }} {{ octavia_az_name }} -f value -c name
+  register: az_check
+  failed_when: false
+  changed_when: false
+
+- name: Create Octavia availability zone
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer availabilityzone create --os-cloud {{ os_cloud }}
+      --name {{ octavia_az_name }}
+      --availabilityzoneprofile {{ az_profile_id }}
+  when: az_check.rc != 0
+
+- name: Display availability zone summary
+  ansible.builtin.debug:
+    msg: "Availability zones: {{ az_list }} | Host map: {{ az_host_map }} | Octavia LB AZ: {{ octavia_az_name }}"

@@ -1,0 +1,12 @@
+---
+os_cloud: default
+
+vip_network_name: vip-network
+vip_address: 10.0.1.30
+member_protocol_port: 80
+listener_protocol: TERMINATED_HTTPS
+pool_protocol: HTTP
+listener_port: 443
+lb_algorithm: ROUND_ROBIN
+prometheus_listener_port: 8088
+tls_ref: ""

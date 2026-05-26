@@ -1,0 +1,19 @@
+---
+- name: Create cert directories on remote
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /tmp/lb_certs
+    - /tmp/member_certs
+
+- name: Copy member certs to remote servers
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /tmp/member_certs/
+    mode: "0644"
+  loop:
+    - /tmp/member_certs/ca-cert-crl.pem
+    - /tmp/member_certs/server.pem
+    - /tmp/member_certs/server.crt

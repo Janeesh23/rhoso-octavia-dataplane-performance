@@ -1,0 +1,122 @@
+---
+os_cloud: default
+
+amphora_disk: 10
+
+amphora_vcpu_counts:
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  - 64
+
+octavia_flavor_profiles:
+  - name: standalone-profile-mq
+    provider: amphora
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image"
+
+  - name: standalone-2vcpus-profile-mq
+    provider: amphora
+    compute_flavor: amphora-2vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image"
+
+  - name: standalone-4vcpus-profile-mq
+    provider: amphora
+    compute_flavor: amphora-4vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image"
+
+  - name: standalone-4vcpus-profile-mq-cpu-pin
+    provider: amphora
+    compute_flavor: amphora-4vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image-vert"
+
+  - name: standalone-8vcpus-profile-mq
+    provider: amphora
+    compute_flavor: amphora-8vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image"
+
+  - name: standalone-8vcpus-profile-mq-cpu-pin
+    provider: amphora
+    compute_flavor: amphora-8vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image-vert"
+
+  - name: standalone-16vcpus-profile-mq
+    provider: amphora
+    compute_flavor: amphora-16vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image"
+
+  - name: standalone-16vcpus-profile-mq-cpu-pin
+    provider: amphora
+    compute_flavor: amphora-16vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image-vert"
+
+  - name: standalone-32vcpus-profile-mq
+    provider: amphora
+    compute_flavor: amphora-32vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image"
+
+  - name: standalone-32vcpus-profile-mq-cpu-pin
+    provider: amphora
+    compute_flavor: amphora-32vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image-vert"
+
+  - name: standalone-64vcpus-profile-mq
+    provider: amphora
+    compute_flavor: amphora-64vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image"
+
+  - name: standalone-64vcpus-profile-mq-cpu-pin
+    provider: amphora
+    compute_flavor: amphora-64vcpus
+    flavor_data:
+      loadbalancer_topology: "SINGLE"
+      amp_image_tag: "amphora-image-vert"
+
+octavia_flavors:
+  - name: standalone
+    profile: standalone-profile-mq
+  - name: standalone-2vcpus
+    profile: standalone-2vcpus-profile-mq
+  - name: standalone-4vcpus-mq
+    profile: standalone-4vcpus-profile-mq
+  - name: standalone-4vcpus-mq-cpu-pin
+    profile: standalone-4vcpus-profile-mq-cpu-pin
+  - name: standalone-8vcpus-mq
+    profile: standalone-8vcpus-profile-mq
+  - name: standalone-8vcpus-mq-cpu-pin
+    profile: standalone-8vcpus-profile-mq-cpu-pin
+  - name: standalone-16vcpus-mq
+    profile: standalone-16vcpus-profile-mq
+  - name: standalone-16vcpus-mq-cpu-pin
+    profile: standalone-16vcpus-profile-mq-cpu-pin
+  - name: standalone-32vcpus-mq
+    profile: standalone-32vcpus-profile-mq
+  - name: standalone-32vcpus-mq-cpu-pin
+    profile: standalone-32vcpus-profile-mq-cpu-pin
+  - name: standalone-64vcpus-mq
+    profile: standalone-64vcpus-profile-mq
+  - name: standalone-64vcpus-mq-cpu-pin
+    profile: standalone-64vcpus-profile-mq-cpu-pin

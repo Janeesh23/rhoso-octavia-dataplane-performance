@@ -1,0 +1,196 @@
+---
+# --- Step 1: Clean up any existing LB with the same name ---
+
+- name: Find existing load balancers with name {{ lb_name }}
+  ansible.builtin.shell:
+    cmd: >-
+      openstack loadbalancer list --os-cloud {{ os_cloud }}
+      --name {{ lb_name }} -f value -c id
+  register: existing_lbs
+  changed_when: false
+
+- name: Delete existing load balancers
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer delete --os-cloud {{ os_cloud }}
+      {{ item }} --cascade --wait
+  loop: "{{ existing_lbs.stdout_lines }}"
+  failed_when: false
+
+- name: Clean up orphaned VIP port
+  ansible.builtin.shell:
+    cmd: >-
+      openstack port list --os-cloud {{ os_cloud }}
+      --network {{ vip_network_name }} --fixed-ip ip-address={{ vip_address }}
+      -f value -c ID | xargs -r openstack port delete --os-cloud {{ os_cloud }}
+  failed_when: false
+  changed_when: false
+
+# --- Step 2: Discover member IPs dynamically ---
+
+- name: Get member server fixed IPs
+  ansible.builtin.shell:
+    cmd: >-
+      openstack port list --os-cloud {{ os_cloud }}
+      --network {{ member_network_name }} --server {{ item }}
+      -f value -c "Fixed IP Addresses" | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1
+  loop: "{{ member_names }}"
+  loop_control:
+    label: "{{ item }}"
+  register: member_ips
+  changed_when: false
+
+- name: Fail if any member IP could not be resolved
+  ansible.builtin.fail:
+    msg: "Could not resolve IP for member {{ item.item }}"
+  when: item.stdout | trim == ''
+  loop: "{{ member_ips.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# --- Step 3: Get subnet IDs ---
+
+- name: Get VIP subnet ID
+  ansible.builtin.command:
+    cmd: openstack subnet show --os-cloud {{ os_cloud }} {{ vip_subnet_name }} -f value -c id
+  register: vip_subnet_result
+  changed_when: false
+
+- name: Get member subnet ID
+  ansible.builtin.command:
+    cmd: openstack subnet show --os-cloud {{ os_cloud }} {{ member_subnet_name }} -f value -c id
+  register: member_subnet_result
+  changed_when: false
+
+- name: Set subnet ID facts
+  ansible.builtin.set_fact:
+    vip_subnet_id: "{{ vip_subnet_result.stdout | trim }}"
+    member_subnet_id: "{{ member_subnet_result.stdout | trim }}"
+
+# --- Step 4: Create load balancer ---
+
+- name: Create load balancer
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer create --os-cloud {{ os_cloud }}
+      --name {{ lb_name }}
+      --vip-subnet-id {{ vip_subnet_id }}
+      --vip-address {{ vip_address }}
+      --flavor {{ lb_flavor }}
+      --availability-zone {{ lb_az }}
+      --wait
+  register: lb_create
+
+- name: Get load balancer ID
+  ansible.builtin.command:
+    cmd: openstack loadbalancer show --os-cloud {{ os_cloud }} {{ lb_name }} -f value -c id
+  register: lb_id_result
+  changed_when: false
+
+- name: Set LB ID fact
+  ansible.builtin.set_fact:
+    lb_id: "{{ lb_id_result.stdout | trim }}"
+
+# --- Step 5: Resolve TLS secret and create listener ---
+
+- name: Look up TLS secret href from Barbican
+  ansible.builtin.command:
+    cmd: >-
+      openstack secret list --os-cloud {{ os_cloud }}
+      --name {{ tls_secret_name }} -f value -c "Secret href"
+  register: tls_secret_result
+  changed_when: false
+  when: tls_ref | length == 0
+
+- name: Set tls_ref from Barbican lookup
+  ansible.builtin.set_fact:
+    tls_ref: "{{ tls_secret_result.stdout | trim }}"
+  when: tls_ref | length == 0
+
+- name: Fail if TLS secret not found
+  ansible.builtin.fail:
+    msg: "Could not find Barbican secret '{{ tls_secret_name }}'. Run barbican-secret role first."
+  when: tls_ref | length == 0
+
+- name: Create TERMINATED_HTTPS listener
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer listener create --os-cloud {{ os_cloud }}
+      --name listener-{{ lb_name }}-{{ listener_protocol }}-{{ listener_port }}
+      --protocol {{ listener_protocol }}
+      --protocol-port {{ listener_port }}
+      --default-tls-container-ref {{ tls_ref }}
+      --tls-ciphers {{ tls_ciphers }}
+      --connection-limit {{ connection_limit }}
+      {{ lb_id }}
+      --wait
+
+- name: Get listener ID
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer listener list --os-cloud {{ os_cloud }}
+      --loadbalancer {{ lb_id }} -f value -c id
+  register: listener_id_result
+  changed_when: false
+
+- name: Set listener ID fact
+  ansible.builtin.set_fact:
+    listener_id: "{{ listener_id_result.stdout | trim }}"
+
+# --- Step 6: Create pool ---
+
+- name: Create pool
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer pool create --os-cloud {{ os_cloud }}
+      --name pool-{{ pool_protocol }}-{{ lb_name }}
+      --listener {{ listener_id }}
+      --protocol {{ pool_protocol }}
+      --lb-algorithm {{ lb_algorithm }}
+      --wait
+
+- name: Get pool ID
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer pool list --os-cloud {{ os_cloud }}
+      --loadbalancer {{ lb_id }} -f value -c id
+  register: pool_id_result
+  changed_when: false
+
+- name: Set pool ID fact
+  ansible.builtin.set_fact:
+    pool_id: "{{ pool_id_result.stdout | trim }}"
+
+# --- Step 7: Add members dynamically ---
+
+- name: Add members to pool
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer member create --os-cloud {{ os_cloud }}
+      --subnet-id {{ member_subnet_id }}
+      --address {{ item.stdout | trim }}
+      --protocol-port {{ member_protocol_port }}
+      --name member{{ idx + 1 }}
+      {{ pool_id }}
+      --wait
+  loop: "{{ member_ips.results }}"
+  loop_control:
+    label: "member{{ idx + 1 }} ({{ item.stdout | trim }})"
+    index_var: idx
+
+# --- Step 8: Create Prometheus metrics listener ---
+
+- name: Create Prometheus metrics listener
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer listener create --os-cloud {{ os_cloud }}
+      --name {{ lb_name }}-metrics-listener
+      --protocol PROMETHEUS
+      --protocol-port {{ prometheus_listener_port }}
+      {{ lb_id }}
+
+- name: Display load balancer summary
+  ansible.builtin.debug:
+    msg: >-
+      LB '{{ lb_name }}' created in AZ '{{ lb_az }}' with
+      {{ member_names | length }} members on port {{ member_protocol_port }}

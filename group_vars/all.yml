@@ -1,0 +1,19 @@
+---
+lb_name: lb-amphora
+lb_flavor: standalone-4vcpus-mq
+lb_az: octavia
+vip_subnet_name: vip-subnet
+member_subnet_name: member-subnet
+connection_limit: 1000000
+
+tls_secret_name: tls_secret1
+tls_ciphers: >-
+  TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256
+
+member_names:
+  - naruto-member1
+  - sasuke-member2
+  - sakura-member3
+
+member_network_name: member-network
+external_network_name: public

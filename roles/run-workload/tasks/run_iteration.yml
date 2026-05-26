@@ -1,0 +1,13 @@
+---
+- name: "Run {{ run_number }}/{{ num_runs }} — Create results directory"
+  ansible.builtin.file:
+    path: "{{ results_dir }}/run{{ run_number }}"
+    state: directory
+    mode: "0755"
+
+- name: "Run {{ run_number }}/{{ num_runs }} — Execute tests"
+  ansible.builtin.include_tasks: run_test.yml
+  loop: "{{ workload_tests }}"
+  loop_control:
+    loop_var: test
+    label: "{{ test.name }}"

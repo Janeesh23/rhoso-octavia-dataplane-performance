@@ -1,0 +1,75 @@
+---
+- name: Generate static inventory file
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    os_cloud: default
+    client_names:
+      - kakashi-client1
+    member_names:
+      - naruto-member1
+      - sasuke-member2
+      - sakura-member3
+    keypair_private_key_path: "~/.ssh/id_rsa.me"
+    inventory_file: "{{ playbook_dir }}/inventory"
+  tasks:
+    - name: Get client server floating IPs
+      ansible.builtin.shell:
+        cmd: >-
+          openstack port list --os-cloud {{ os_cloud }} --server {{ item }}
+          -f value -c "Fixed IP Addresses" | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1
+      loop: "{{ client_names }}"
+      register: client_fixed_ips
+      changed_when: false
+
+    - name: Resolve client floating IPs
+      ansible.builtin.command:
+        cmd: openstack floating ip list --os-cloud {{ os_cloud }} --fixed-ip-address {{ item.stdout | trim }} -f value -c "Floating IP Address"
+      loop: "{{ client_fixed_ips.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: client_fips
+      changed_when: false
+
+    - name: Get member server floating IPs
+      ansible.builtin.shell:
+        cmd: >-
+          openstack port list --os-cloud {{ os_cloud }} --server {{ item }}
+          -f value -c "Fixed IP Addresses" | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1
+      loop: "{{ member_names }}"
+      register: member_fixed_ips
+      changed_when: false
+
+    - name: Resolve member floating IPs
+      ansible.builtin.command:
+        cmd: openstack floating ip list --os-cloud {{ os_cloud }} --fixed-ip-address {{ item.stdout | trim }} -f value -c "Floating IP Address"
+      loop: "{{ member_fixed_ips.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: member_fips
+      changed_when: false
+
+    - name: Write inventory file
+      ansible.builtin.copy:
+        dest: "{{ inventory_file }}"
+        content: |
+          [client]
+          {% for i in range(client_names | length) %}
+          {{ client_names[i] }} ansible_host={{ client_fips.results[i].stdout | trim }}
+          {% endfor %}
+
+          [members]
+          {% for i in range(member_names | length) %}
+          {{ member_names[i] }} ansible_host={{ member_fips.results[i].stdout | trim }}
+          {% endfor %}
+
+          [all:vars]
+          ansible_user=cloud-user
+          ansible_ssh_private_key_file={{ keypair_private_key_path }}
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+        mode: "0644"
+
+    - name: Display generated inventory
+      ansible.builtin.debug:
+        msg: "Inventory written to {{ inventory_file }}"

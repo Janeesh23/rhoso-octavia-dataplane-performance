@@ -1,0 +1,3 @@
+[Service]
+ExecStart=
+ExecStart=taskset -c {{ nginx_cpu_affinity }} /usr/sbin/nginx

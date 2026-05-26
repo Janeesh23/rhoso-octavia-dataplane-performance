@@ -1,0 +1,38 @@
+---
+- name: Check if image already exists
+  openstack.cloud.image_info:
+    cloud: "{{ os_cloud }}"
+    image: "{{ image_name }}"
+  register: image_info
+
+- name: Download image file
+  ansible.builtin.get_url:
+    url: "{{ image_url }}"
+    dest: "/tmp/{{ image_filename }}"
+    mode: "0644"
+  when: image_info.images | length == 0
+
+- name: Create and upload image
+  openstack.cloud.image:
+    cloud: "{{ os_cloud }}"
+    name: "{{ image_name }}"
+    filename: "/tmp/{{ image_filename }}"
+    container_format: "{{ image_container_format }}"
+    disk_format: "{{ image_disk_format }}"
+    properties: "{{ image_properties }}"
+    state: present
+  when: image_info.images | length == 0
+
+- name: Wait for image to become active
+  openstack.cloud.image_info:
+    cloud: "{{ os_cloud }}"
+    image: "{{ image_name }}"
+  register: image_status
+  until: image_status.images[0].status == "active"
+  retries: "{{ image_wait_retries }}"
+  delay: "{{ image_wait_delay }}"
+
+- name: Clean up downloaded image file
+  ansible.builtin.file:
+    path: "/tmp/{{ image_filename }}"
+    state: absent

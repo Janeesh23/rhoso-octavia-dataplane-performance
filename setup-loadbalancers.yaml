@@ -1,0 +1,60 @@
+---
+- name: Set up Amphora HTTP load balancer
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - amphora-http
+    - http
+  roles:
+    - amphora-http
+
+- name: Set up Amphora HTTP-503 load balancer (empty pool)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - amphora-http-503
+    - http-503
+  roles:
+    - amphora-http-503
+
+- name: Set up Amphora TCP load balancer
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - amphora-tcp
+    - tcp
+  roles:
+    - amphora-tcp
+
+- name: Set up Amphora UDP load balancer
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - amphora-udp
+    - udp
+  roles:
+    - amphora-udp
+
+- name: Set up Amphora HTTPS (TLS termination) load balancer
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - amphora-https
+    - https
+  roles:
+    - amphora-https
+
+- name: Set up Amphora HTTPS re-encryption load balancer
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - amphora-https-reencryption
+    - https-reencryption
+  roles:
+    - amphora-https-reencryption

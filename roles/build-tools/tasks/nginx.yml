@@ -1,0 +1,101 @@
+---
+# --- Copy member certs to nginx cert dir ---
+- name: Create nginx cert directory
+  ansible.builtin.file:
+    path: "{{ nginx_cert_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Copy member certs for nginx SSL
+  ansible.builtin.copy:
+    src: "/tmp/member_certs/{{ item }}"
+    dest: "{{ nginx_cert_dir }}/{{ item }}"
+    remote_src: true
+    mode: "0644"
+  loop:
+    - server.crt
+    - server.pem
+
+# --- nginx config ---
+- name: Deploy nginx config
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+  notify: restart nginx
+
+# --- systemd override for CPU pinning ---
+- name: Create nginx systemd override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/nginx.service.d
+    state: directory
+    mode: "0755"
+
+- name: Deploy nginx taskset override
+  ansible.builtin.template:
+    src: nginx-taskset-override.conf.j2
+    dest: /etc/systemd/system/nginx.service.d/override.conf
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart nginx
+
+# --- Static test files in shared memory ---
+- name: Create nginx html directory in shared memory
+  ansible.builtin.file:
+    path: "{{ nginx_html_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Create empty 0.bin
+  ansible.builtin.file:
+    path: "{{ nginx_html_dir }}/0.bin"
+    state: touch
+    mode: "0644"
+
+- name: Generate 1kb.bin
+  ansible.builtin.command:
+    cmd: dd if=/dev/urandom of={{ nginx_html_dir }}/1kb.bin bs=1024 count=1
+    creates: "{{ nginx_html_dir }}/1kb.bin"
+
+- name: Generate 100kb.bin
+  ansible.builtin.command:
+    cmd: dd if=/dev/urandom of={{ nginx_html_dir }}/100kb.bin bs=1024 count=100
+    creates: "{{ nginx_html_dir }}/100kb.bin"
+
+- name: Generate 1mb.bin
+  ansible.builtin.command:
+    cmd: dd if=/dev/urandom of={{ nginx_html_dir }}/1mb.bin bs=1048576 count=1
+    creates: "{{ nginx_html_dir }}/1mb.bin"
+
+- name: Generate 500mb.bin
+  ansible.builtin.command:
+    cmd: dd if=/dev/urandom of={{ nginx_html_dir }}/500mb.bin bs=524288000 count=1
+    creates: "{{ nginx_html_dir }}/500mb.bin"
+
+# --- Logrotate ---
+- name: Deploy nginx logrotate config
+  ansible.builtin.template:
+    src: nginx-logrotate.conf.j2
+    dest: /etc/logrotate.d/nginx
+    mode: "0644"
+
+# --- SELinux ---
+- name: Set SELinux context for nginx html directory
+  community.general.sefcontext:
+    target: "{{ nginx_html_dir }}(/.*)?"
+    setype: httpd_sys_content_t
+    state: present
+
+- name: Apply SELinux context
+  ansible.builtin.command:
+    cmd: restorecon -Rv {{ nginx_html_dir }}
+  changed_when: false
+
+# --- Enable and start ---
+- name: Enable and start nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: restarted
+    daemon_reload: true

@@ -1,0 +1,31 @@
+---
+- name: Clone nghttp2
+  ansible.builtin.git:
+    repo: https://github.com/nghttp2/nghttp2.git
+    dest: "{{ nghttp2_install_dir }}/nghttp2"
+    version: v1.64.0
+    update: false
+
+- name: Initialize nghttp2 submodules
+  ansible.builtin.command:
+    cmd: git submodule update --init
+    chdir: "{{ nghttp2_install_dir }}/nghttp2"
+    creates: "{{ nghttp2_install_dir }}/nghttp2/third-party/mruby/README.md"
+
+- name: Run autoreconf for nghttp2
+  ansible.builtin.command:
+    cmd: scl enable gcc-toolset-13 -- bash -c "autoreconf -i && automake && autoconf"
+    chdir: "{{ nghttp2_install_dir }}/nghttp2"
+    creates: "{{ nghttp2_install_dir }}/nghttp2/configure"
+
+- name: Configure nghttp2
+  ansible.builtin.command:
+    cmd: scl enable gcc-toolset-13 -- ./configure --enable-app
+    chdir: "{{ nghttp2_install_dir }}/nghttp2"
+    creates: "{{ nghttp2_install_dir }}/nghttp2/Makefile"
+
+- name: Build nghttp2
+  ansible.builtin.command:
+    cmd: scl enable gcc-toolset-13 -- make
+    chdir: "{{ nghttp2_install_dir }}/nghttp2"
+    creates: "{{ nghttp2_install_dir }}/nghttp2/src/h2load"

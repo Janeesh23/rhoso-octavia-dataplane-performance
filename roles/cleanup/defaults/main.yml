@@ -1,0 +1,84 @@
+---
+os_cloud: default
+
+client_names:
+  - kakashi-client1
+
+member_names:
+  - naruto-member1
+  - sasuke-member2
+  - sakura-member3
+
+client_network_name: vip-network
+member_network_name: member-network
+
+vip_network_name: vip-network
+vip_subnet_name: vip-subnet
+member_subnet_name: member-subnet
+public_network_name: public
+public_subnet_name: public-subnet
+subnet_pool_name: ipv4-pool
+router_name: test-router
+
+security_groups:
+  - vip-sg
+  - member-sg
+
+keypair_name: me
+keypair_private_key_path: "~/.ssh/id_rsa.me"
+keypair_public_key_path: "~/.ssh/id_rsa.me.pub"
+
+image_name: centos-9-stream
+
+compute_flavors:
+  - f1
+  - f2
+
+amphora_vcpu_counts:
+  - 2
+  - 4
+  - 8
+  - 16
+  - 32
+  - 64
+
+octavia_flavors:
+  - standalone
+  - standalone-2vcpus
+  - standalone-4vcpus-mq
+  - standalone-4vcpus-mq-cpu-pin
+  - standalone-8vcpus-mq
+  - standalone-8vcpus-mq-cpu-pin
+  - standalone-16vcpus-mq
+  - standalone-16vcpus-mq-cpu-pin
+  - standalone-32vcpus-mq
+  - standalone-32vcpus-mq-cpu-pin
+  - standalone-64vcpus-mq
+  - standalone-64vcpus-mq-cpu-pin
+
+octavia_flavor_profiles:
+  - standalone-profile-mq
+  - standalone-2vcpus-profile-mq
+  - standalone-4vcpus-profile-mq
+  - standalone-4vcpus-profile-mq-cpu-pin
+  - standalone-8vcpus-profile-mq
+  - standalone-8vcpus-profile-mq-cpu-pin
+  - standalone-16vcpus-profile-mq
+  - standalone-16vcpus-profile-mq-cpu-pin
+  - standalone-32vcpus-profile-mq
+  - standalone-32vcpus-profile-mq-cpu-pin
+  - standalone-64vcpus-profile-mq
+  - standalone-64vcpus-profile-mq-cpu-pin
+
+barbican_secret_name: tls_secret1
+
+octavia_az_name: octavia
+octavia_az_profile_name: octavia-profile
+
+cert_dirs:
+  - /tmp/member_certs
+  - /tmp/lb_certs
+
+client_az: client_az
+member_count: 3
+octavia_az: octavia

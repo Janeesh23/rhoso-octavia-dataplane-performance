@@ -1,0 +1,148 @@
+---
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: "{{ cert_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Create CRL directory and seed files
+  ansible.builtin.file:
+    path: "{{ cert_dir }}/crl"
+    state: directory
+    mode: "0700"
+
+- name: Seed CRL index file
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ cert_dir }}/crl/index.txt"
+    force: false
+
+- name: Seed CRL number file
+  ansible.builtin.copy:
+    content: "1000"
+    dest: "{{ cert_dir }}/crl/crlnumber"
+    force: false
+
+- name: Render CRL openssl config
+  ansible.builtin.template:
+    src: crl_openssl.conf.j2
+    dest: "{{ cert_dir }}/crl_openssl.conf"
+
+# --- CA ---
+- name: Generate CA private key (AES-128 encrypted)
+  ansible.builtin.command:
+    cmd: >-
+      openssl genrsa -aes128
+      -out {{ cert_dir }}/ca-key.pem
+      -passout pass:{{ ca_passphrase }}
+      4096
+    creates: "{{ cert_dir }}/ca-key.pem"
+
+- name: Generate self-signed CA certificate
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -key {{ cert_dir }}/ca-key.pem
+      -new -x509 -sha256 -extensions v3_ca -days {{ ca_validity_days }}
+      -subj "/C={{ cert_country }}/L={{ cert_locality }}/O={{ cert_org }}/CN={{ ca_common_name }}/"
+      -passin pass:{{ ca_passphrase }}
+      -out {{ cert_dir }}/ca-cert.pem
+    creates: "{{ cert_dir }}/ca-cert.pem"
+
+# --- Server certificate ---
+- name: Generate server private key
+  ansible.builtin.command:
+    cmd: >-
+      openssl genrsa
+      -out {{ cert_dir }}/server.pem
+      4096
+    creates: "{{ cert_dir }}/server.pem"
+
+- name: Generate server CSR
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -key {{ cert_dir }}/server.pem
+      -new
+      -subj "/C={{ cert_country }}/L={{ cert_locality }}/O={{ cert_org }}/CN={{ server_common_name }}/"
+      -out {{ cert_dir }}/server.csr
+    creates: "{{ cert_dir }}/server.csr"
+
+- name: Sign server certificate with CA
+  ansible.builtin.command:
+    cmd: >-
+      openssl x509 -req
+      -in {{ cert_dir }}/server.csr
+      -CA {{ cert_dir }}/ca-cert.pem
+      -CAkey {{ cert_dir }}/ca-key.pem
+      -CAcreateserial -days {{ server_validity_days }}
+      -passin pass:{{ ca_passphrase }}
+      -out {{ cert_dir }}/server.crt
+    creates: "{{ cert_dir }}/server.crt"
+
+# --- CRL ---
+- name: Generate CRL
+  ansible.builtin.command:
+    cmd: >-
+      openssl ca -gencrl
+      -config {{ cert_dir }}/crl_openssl.conf
+      -keyfile {{ cert_dir }}/ca-key.pem
+      -cert {{ cert_dir }}/ca-cert.pem
+      -passin pass:{{ ca_passphrase }}
+      -out {{ cert_dir }}/intermediate.crl.pem
+    creates: "{{ cert_dir }}/intermediate.crl.pem"
+
+# --- Combined bundles ---
+- name: Create CA cert + CRL bundle
+  ansible.builtin.assemble:
+    src: "{{ cert_dir }}"
+    dest: "{{ cert_dir }}/ca-cert-crl.pem"
+    regexp: "^(ca-cert|intermediate\\.crl)\\.pem$"
+    mode: "0600"
+
+- name: Create server key + cert bundle
+  ansible.builtin.assemble:
+    src: "{{ cert_dir }}"
+    dest: "{{ cert_dir }}/server-key-and-cert.pem"
+    regexp: "^server\\.(pem|crt)$"
+    mode: "0600"
+
+# --- Client certificate ---
+- name: Generate client private key
+  ansible.builtin.command:
+    cmd: >-
+      openssl genrsa
+      -out {{ cert_dir }}/client.pem
+      4096
+    creates: "{{ cert_dir }}/client.pem"
+
+- name: Generate client CSR
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -key {{ cert_dir }}/client.pem
+      -new
+      -subj "/C={{ cert_country }}/L={{ cert_locality }}/O={{ cert_org }}/CN={{ client_common_name }}/"
+      -out {{ cert_dir }}/client.csr
+    creates: "{{ cert_dir }}/client.csr"
+
+- name: Sign client certificate with CA
+  ansible.builtin.command:
+    cmd: >-
+      openssl x509 -req
+      -in {{ cert_dir }}/client.csr
+      -CA {{ cert_dir }}/ca-cert.pem
+      -CAkey {{ cert_dir }}/ca-key.pem
+      -CAcreateserial -days {{ client_validity_days }}
+      -passin pass:{{ ca_passphrase }}
+      -out {{ cert_dir }}/client.crt
+    creates: "{{ cert_dir }}/client.crt"
+
+# --- PKCS12 export ---
+- name: Export server PKCS12 bundle
+  ansible.builtin.command:
+    cmd: >-
+      openssl pkcs12 -export
+      -inkey {{ cert_dir }}/server.pem
+      -in {{ cert_dir }}/server.crt
+      -certfile {{ cert_dir }}/ca-cert-crl.pem
+      -passout pass:
+      -out {{ cert_dir }}/server.p12
+    creates: "{{ cert_dir }}/server.p12"

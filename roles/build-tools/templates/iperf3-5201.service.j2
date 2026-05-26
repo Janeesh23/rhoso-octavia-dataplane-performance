@@ -1,0 +1,9 @@
+[Unit]
+Description=iperf3 server port 5201
+After=network.target
+
+[Service]
+ExecStart=taskset -c 1-15 iperf3 -s -p 5201
+
+[Install]
+WantedBy=multi-user.target

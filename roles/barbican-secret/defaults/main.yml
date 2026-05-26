@@ -1,0 +1,7 @@
+---
+os_cloud: default
+
+barbican_secret_name: tls_secret1
+barbican_secret_type: application/octet-stream
+barbican_secret_encoding: base64
+barbican_p12_path: /tmp/lb_certs/server.p12

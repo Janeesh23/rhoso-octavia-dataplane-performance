@@ -1,0 +1,14 @@
+---
+os_cloud: default
+
+httpterm_install_dir: /home/cloud-user
+nghttp2_install_dir: /home/cloud-user
+wrk_install_dir: /home/cloud-user
+
+iperf3_version: "3.10"
+
+nginx_worker_processes: 15
+nginx_listen_port: 443
+nginx_cert_dir: /etc/nginx/certs
+nginx_html_dir: /dev/shm/html
+nginx_cpu_affinity: "1-15"

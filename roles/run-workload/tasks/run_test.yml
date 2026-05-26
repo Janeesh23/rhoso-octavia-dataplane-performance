@@ -1,0 +1,13 @@
+---
+- name: "Run {{ run_number }}/{{ num_runs }} — {{ test.name }}"
+  ansible.builtin.shell:
+    cmd: "{{ test.cmd }} 2>&1 | tee {{ results_dir }}/run{{ run_number }}/{{ test.name }}.log"
+  register: test_result
+
+- name: "Run {{ run_number }}/{{ num_runs }} — {{ test.name }} result"
+  ansible.builtin.debug:
+    msg: "rc={{ test_result.rc }}"
+
+- name: "Run {{ run_number }}/{{ num_runs }} — Wait {{ delay_between_tests }}s"
+  ansible.builtin.pause:
+    seconds: "{{ delay_between_tests }}"

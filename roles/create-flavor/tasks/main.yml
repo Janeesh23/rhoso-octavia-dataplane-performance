@@ -1,0 +1,111 @@
+---
+# --- Step 1: Create Nova compute flavors for amphora VMs ---
+
+- name: Check existing Nova flavors
+  ansible.builtin.command:
+    cmd: openstack flavor show --os-cloud {{ os_cloud }} amphora-{{ item }}vcpus -f value -c id
+  loop: "{{ amphora_vcpu_counts }}"
+  register: nova_flavor_check
+  failed_when: false
+  changed_when: false
+
+- name: Create missing Nova flavors
+  ansible.builtin.command:
+    cmd: >-
+      openstack flavor create --os-cloud {{ os_cloud }}
+      --vcpus {{ item.item }}
+      --ram {{ item.item * 1024 }}
+      --disk {{ amphora_disk }}
+      amphora-{{ item.item }}vcpus
+  loop: "{{ nova_flavor_check.results }}"
+  loop_control:
+    label: "amphora-{{ item.item }}vcpus"
+  when: item.rc != 0
+
+- name: Enable multiqueue on Nova flavors
+  ansible.builtin.command:
+    cmd: >-
+      openstack flavor set --os-cloud {{ os_cloud }}
+      --property hw:vif_multiqueue_enabled=true
+      amphora-{{ item }}vcpus
+  loop: "{{ amphora_vcpu_counts }}"
+  loop_control:
+    label: "amphora-{{ item }}vcpus"
+
+# --- Step 2: Get Nova flavor IDs for use in Octavia flavor profiles ---
+
+- name: Get Nova flavor IDs
+  ansible.builtin.command:
+    cmd: openstack flavor show --os-cloud {{ os_cloud }} {{ item.compute_flavor }} -f value -c id
+  loop: "{{ octavia_flavor_profiles | selectattr('compute_flavor', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.compute_flavor }}"
+  register: nova_flavor_ids
+  changed_when: false
+
+- name: Build compute flavor ID map
+  ansible.builtin.set_fact:
+    compute_flavor_map: "{{ compute_flavor_map | default({}) | combine({item.item.compute_flavor: item.stdout | trim}) }}"
+  loop: "{{ nova_flavor_ids.results }}"
+  loop_control:
+    label: "{{ item.item.compute_flavor }}"
+
+# --- Step 3: Create Octavia flavor profiles ---
+
+- name: Check existing Octavia flavor profiles
+  ansible.builtin.command:
+    cmd: openstack loadbalancer flavorprofile show --os-cloud {{ os_cloud }} {{ item.name }} -f value -c id
+  loop: "{{ octavia_flavor_profiles }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: profile_check
+  failed_when: false
+  changed_when: false
+
+- name: Build flavor data for profiles
+  ansible.builtin.set_fact:
+    profile_flavor_data: >-
+      {{ profile_flavor_data | default({}) | combine({
+        item.item.name: item.item.flavor_data | combine(
+          {'compute_flavor': compute_flavor_map[item.item.compute_flavor]}
+          if item.item.compute_flavor is defined else {}
+        )
+      }) }}
+  loop: "{{ profile_check.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Create missing Octavia flavor profiles
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer flavorprofile create --os-cloud {{ os_cloud }}
+      --name {{ item.item.name }}
+      --provider {{ item.item.provider }}
+      --flavor-data '{{ profile_flavor_data[item.item.name] | to_json }}'
+  loop: "{{ profile_check.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.rc != 0
+
+# --- Step 4: Create Octavia flavors ---
+
+- name: Check existing Octavia flavors
+  ansible.builtin.command:
+    cmd: openstack loadbalancer flavor show --os-cloud {{ os_cloud }} {{ item.name }} -f value -c id
+  loop: "{{ octavia_flavors }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: flavor_check
+  failed_when: false
+  changed_when: false
+
+- name: Create missing Octavia flavors
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer flavor create --os-cloud {{ os_cloud }}
+      --name {{ item.item.name }}
+      --flavorprofile {{ item.item.profile }}
+  loop: "{{ flavor_check.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.rc != 0

@@ -1,0 +1,9 @@
+---
+os_cloud: default
+
+client_az: client_az
+member_count: 3
+octavia_az: octavia
+octavia_az_name: octavia
+octavia_az_profile_name: octavia-profile
+octavia_mgmt_network: lb-mgmt-net
