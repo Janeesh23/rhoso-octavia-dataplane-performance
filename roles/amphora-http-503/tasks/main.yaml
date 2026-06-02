@@ -104,19 +104,18 @@
       --lb-algorithm {{ lb_algorithm }}
       --wait
 
-# --- Step 6: Create Prometheus metrics listener ---
-
-- name: Create Prometheus metrics listener
-  ansible.builtin.command:
-    cmd: >-
-      openstack loadbalancer listener create --os-cloud {{ os_cloud }}
-      --name {{ lb_name }}-metrics-listener
-      --protocol PROMETHEUS
-      --protocol-port {{ prometheus_listener_port }}
-      {{ lb_id }}
-
 - name: Display load balancer summary
   ansible.builtin.debug:
     msg: >-
       LB '{{ lb_name }}' created in AZ '{{ lb_az }}' with an empty pool
       (no members). All requests will return 503 Service Unavailable.
+
+- name: Create Prometheus metrics listener
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer listener create --os-cloud {{ os_cloud }}
+      --name listener-{{ lb_name }}-prometheus
+      --protocol PROMETHEUS
+      --protocol-port {{ prometheus_listener_port }}
+      {{ lb_id }}
+      --wait

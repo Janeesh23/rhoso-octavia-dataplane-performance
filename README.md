@@ -24,6 +24,9 @@ ansible-galaxy collection install -r requirements.yml
 ├── run-workloads.yaml            # Run performance workloads
 ├── generate-inventory.yaml       # Generate static inventory file
 ├── parse-results.py              # Parse benchmark logs into table/CSV
+├── generate-report.py            # Generate HTML performance report
+├── collect-compute-metrics.sh    # Hypervisor CPU/memory collector (runs on compute node)
+├── scrape-amphora-prometheus.py  # Amphora Prometheus metrics scraper (runs on client VM)
 ├── group_vars/
 │   └── all.yml                   # Global variables (LB name, flavor, AZ, etc.)
 └── roles/
@@ -42,6 +45,7 @@ ansible-galaxy collection install -r requirements.yml
     ├── amphora-https-reencryption/ # Create HTTPS re-encryption load balancer
     ├── amphora-udp/              # Create UDP load balancer
     ├── run-workload/             # Generic workload runner (used by run-workloads.yaml)
+    ├── collect-metrics/          # Collect hypervisor + amphora metrics during tests
     └── cleanup/                  # Tear down all resources
 ```
 
@@ -108,6 +112,19 @@ ansible-playbook -i inventory run-workloads.yaml
 ansible-playbook -i inventory run-workloads.yaml --tags amphora-http
 ```
 
+**Run with metrics collection enabled:**
+
+```bash
+ansible-playbook -i inventory run-workloads.yaml --tags amphora-http \
+  -e collect_metrics=true -e num_runs=3
+```
+
+When `collect_metrics=true`, the framework collects:
+- **Compute node (hypervisor) metrics** — CPU and memory usage from the hypervisor hosting the amphora VM, sampled every `metrics_interval` seconds
+- **Amphora VM metrics** — CPU, memory, HTTP response rates, and backend connect time scraped from the amphora's Prometheus endpoint
+
+An HTML report is automatically generated at the end of each run at `results/<workload>/report.html`.
+
 #### Available Workload Tags
 
 | Tag | LB Type | Protocol | Tests |
@@ -148,24 +165,38 @@ Most workloads run 8 tests with varying response body sizes (`amphora-http-503` 
 
 All tests use 15 threads and a 30-second warm-up period.
 
-### Step 4: Parse Results
+### Step 4: View Results
+
+When workloads complete, results are saved to `results/<workload_name>-<timestamp>/` and include:
+
+- `summary.txt` / `summary.csv` — benchmark results (req/s, bandwidth)
+- `metrics/` — per-test, per-run CSV files for compute and amphora metrics
+- `report.html` — self-contained HTML report with all data (generated automatically when `collect_metrics=true`)
+
+#### Re-generate the HTML report
+
+```bash
+python3 generate-report.py results/amphora-http-20260521-023000/ -o report.html
+```
+
+#### Parse results manually
 
 Use `parse-results.py` to parse benchmark logs and generate a summary. By default it prints formatted tables to the terminal:
 
 ```bash
-python3 parse-results.py ~/results/amphora-http-20260521-023000
+python3 parse-results.py results/amphora-http-20260521-023000
 ```
 
 Save results to files (generates both `summary.txt` table and `summary.csv`):
 
 ```bash
-python3 parse-results.py ~/results/amphora-http-20260521-023000 -o summary
+python3 parse-results.py results/amphora-http-20260521-023000 -o summary
 ```
 
 Use `--format csv` to print CSV to stdout instead of tables:
 
 ```bash
-python3 parse-results.py ~/results/amphora-http-20260521-023000 --format csv
+python3 parse-results.py results/amphora-http-20260521-023000 --format csv
 ```
 
 #### Output Format
@@ -224,6 +255,18 @@ Key variables in `group_vars/all.yml`:
 | `lb_az` | `octavia` | Octavia availability zone |
 | `connection_limit` | `1000000` | Listener connection limit |
 | `member_names` | naruto, sasuke, sakura | Backend member VM names |
+| `metrics_interval` | `1` | Metrics sampling interval in seconds |
+| `hypervisor_ssh_key_secret` | `dataplane-ansible-ssh-private-key-secret` | OpenShift secret containing hypervisor SSH key |
+| `hypervisor_user` | `cloud-admin` | SSH user on the hypervisor |
+| `prometheus_listener_port` | `8088` | Amphora Prometheus metrics port |
+
+Workload settings in `roles/run-workload/defaults/main.yml`:
+
+| Variable | Default | Description |
+|---|---|---|
+| `num_runs` | `1` | Number of times to repeat each test |
+| `collect_metrics` | `false` | Enable hypervisor + amphora metrics collection |
+| `delay_between_tests` | `300` | Seconds to wait between tests |
 
 Flavor settings in `roles/create-flavor/defaults/main.yml`:
 

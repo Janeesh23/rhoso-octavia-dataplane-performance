@@ -8,5 +8,4 @@ listener_protocol: TERMINATED_HTTPS
 pool_protocol: HTTP
 listener_port: 443
 lb_algorithm: ROUND_ROBIN
-prometheus_listener_port: 8088
 tls_ref: ""

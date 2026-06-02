@@ -9,5 +9,4 @@ pool_protocol: HTTP
 listener_port: 443
 lb_algorithm: ROUND_ROBIN
 pool_tls_enabled: true
-prometheus_listener_port: 8088
 tls_ref: ""

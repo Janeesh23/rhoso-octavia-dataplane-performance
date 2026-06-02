@@ -1,0 +1,8 @@
+---
+os_cloud: default
+metrics_interval: 1
+metrics_base_dir: ~/metrics
+hypervisor_ssh_key_secret: dataplane-ansible-ssh-private-key-secret
+hypervisor_ssh_key_path: /tmp/hypervisor_privkey
+hypervisor_user: cloud-admin
+prometheus_listener_port: 8088

@@ -157,19 +157,18 @@
     label: "member{{ idx + 1 }} ({{ item.stdout | trim }})"
     index_var: idx
 
-# --- Step 8: Create Prometheus metrics listener ---
-
-- name: Create Prometheus metrics listener
-  ansible.builtin.command:
-    cmd: >-
-      openstack loadbalancer listener create --os-cloud {{ os_cloud }}
-      --name {{ lb_name }}-metrics-listener
-      --protocol PROMETHEUS
-      --protocol-port {{ prometheus_listener_port }}
-      {{ lb_id }}
-
 - name: Display load balancer summary
   ansible.builtin.debug:
     msg: >-
       LB '{{ lb_name }}' created in AZ '{{ lb_az }}' with
       {{ member_names | length }} members on port {{ member_protocol_port }}
+
+- name: Create Prometheus metrics listener
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer listener create --os-cloud {{ os_cloud }}
+      --name listener-{{ lb_name }}-prometheus
+      --protocol PROMETHEUS
+      --protocol-port {{ prometheus_listener_port }}
+      {{ lb_id }}
+      --wait

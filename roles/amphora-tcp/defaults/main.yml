@@ -7,4 +7,3 @@ member_protocol_port: 80
 listener_protocol: TCP
 listener_port: 80
 lb_algorithm: ROUND_ROBIN
-prometheus_listener_port: 8088

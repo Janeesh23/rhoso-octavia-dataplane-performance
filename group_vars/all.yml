@@ -17,3 +17,10 @@ member_names:
 
 member_network_name: member-network
 external_network_name: public
+
+# Metrics collection settings
+metrics_interval: 1
+hypervisor_ssh_key_secret: dataplane-ansible-ssh-private-key-secret
+hypervisor_ssh_key_path: /tmp/hypervisor_privkey
+hypervisor_user: cloud-admin
+prometheus_listener_port: 8088

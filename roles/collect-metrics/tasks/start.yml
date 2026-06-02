@@ -1,0 +1,39 @@
+---
+# Start metrics collection for a single test.
+# Runs two collectors in parallel:
+#   1. Compute node metrics (on hypervisor via SSH)
+#   2. Amphora Prometheus scraper (on client VM locally)
+#
+# Expects: test_name, metrics_output_dir to be set by caller.
+
+- name: "Metrics — Start compute collector for {{ test_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      ssh -i {{ hypervisor_ssh_key_path }} -o StrictHostKeyChecking=no
+      {{ hypervisor_user }}@{{ hypervisor_ip }}
+      'nohup bash /tmp/collect-compute-metrics.sh {{ metrics_interval }}
+      > /tmp/compute_{{ test_name }}.csv 2>/tmp/compute_{{ test_name }}.err &
+      echo $!'
+  register: compute_collector_pid_result
+  delegate_to: localhost
+  when: hypervisor_ip is defined
+
+- name: "Metrics — Record compute collector PID for {{ test_name }}"
+  ansible.builtin.set_fact:
+    compute_collector_pid: "{{ compute_collector_pid_result.stdout | trim }}"
+  when: compute_collector_pid_result is defined and compute_collector_pid_result.rc == 0
+
+- name: "Metrics — Start Prometheus scraper for {{ test_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      setsid python3 /tmp/scrape-amphora-prometheus.py
+      http://{{ vip }}:{{ prometheus_listener_port }}/metrics {{ metrics_interval }}
+      > {{ metrics_output_dir }}/amphora_{{ test_name }}.csv
+      2>{{ metrics_output_dir }}/amphora_{{ test_name }}.err &
+      echo $!
+  register: prometheus_scraper_pid_result
+
+- name: "Metrics — Record Prometheus scraper PID for {{ test_name }}"
+  ansible.builtin.set_fact:
+    prometheus_scraper_pid: "{{ prometheus_scraper_pid_result.stdout | trim }}"
+  when: prometheus_scraper_pid_result is defined and prometheus_scraper_pid_result.rc == 0

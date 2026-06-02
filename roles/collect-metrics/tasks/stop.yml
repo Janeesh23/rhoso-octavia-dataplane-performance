@@ -1,0 +1,79 @@
+---
+# Stop metrics collection and fetch results.
+# Expects: test_name, metrics_output_dir (client path),
+#           local_metrics_dir (controller path),
+#           compute_collector_pid, prometheus_scraper_pid to be set.
+
+- name: "Metrics — Stop compute collector for {{ test_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      ssh -i {{ hypervisor_ssh_key_path }} -o StrictHostKeyChecking=no
+      {{ hypervisor_user }}@{{ hypervisor_ip }}
+      "kill {{ compute_collector_pid }} 2>/dev/null; sleep 1; kill -9 {{ compute_collector_pid }} 2>/dev/null; true"
+  delegate_to: localhost
+  when: hypervisor_ip is defined and compute_collector_pid is defined
+
+- name: "Metrics — Stop Prometheus scraper for {{ test_name }}"
+  ansible.builtin.shell:
+    cmd: "kill {{ prometheus_scraper_pid }} 2>/dev/null; sleep 1; kill -9 {{ prometheus_scraper_pid }} 2>/dev/null; true"
+  when: prometheus_scraper_pid is defined
+
+- name: "Metrics — Wait for collectors to flush"
+  ansible.builtin.pause:
+    seconds: 2
+
+- name: "Metrics — Ensure local metrics directory exists"
+  ansible.builtin.file:
+    path: "{{ local_metrics_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+
+- name: "Metrics — Fetch compute CSV from hypervisor for {{ test_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      scp -i {{ hypervisor_ssh_key_path }} -o StrictHostKeyChecking=no
+      {{ hypervisor_user }}@{{ hypervisor_ip }}:/tmp/compute_{{ test_name }}.csv
+      {{ local_metrics_dir }}/compute_{{ test_name }}.csv
+  delegate_to: localhost
+  when: hypervisor_ip is defined
+  failed_when: false
+
+- name: "Metrics — Fetch compute error log from hypervisor for {{ test_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      scp -i {{ hypervisor_ssh_key_path }} -o StrictHostKeyChecking=no
+      {{ hypervisor_user }}@{{ hypervisor_ip }}:/tmp/compute_{{ test_name }}.err
+      {{ local_metrics_dir }}/compute_{{ test_name }}.err
+  delegate_to: localhost
+  when: hypervisor_ip is defined
+  failed_when: false
+
+- name: "Metrics — Check compute CSV size for {{ test_name }}"
+  ansible.builtin.stat:
+    path: "{{ local_metrics_dir }}/compute_{{ test_name }}.csv"
+  register: compute_csv_stat
+  delegate_to: localhost
+
+- name: "Metrics — Warn if compute CSV is empty for {{ test_name }}"
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: Compute metrics CSV is empty for {{ test_name }}.
+      Check {{ local_metrics_dir }}/compute_{{ test_name }}.err for errors.
+  when: compute_csv_stat.stat.exists and compute_csv_stat.stat.size == 0
+
+- name: "Metrics — Fetch amphora CSV from client for {{ test_name }}"
+  ansible.builtin.fetch:
+    src: "{{ metrics_output_dir }}/amphora_{{ test_name }}.csv"
+    dest: "{{ local_metrics_dir }}/amphora_{{ test_name }}.csv"
+    flat: true
+  when: prometheus_scraper_pid is defined
+
+- name: "Metrics — Clean up remote files for {{ test_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      ssh -i {{ hypervisor_ssh_key_path }} -o StrictHostKeyChecking=no
+      {{ hypervisor_user }}@{{ hypervisor_ip }}
+      "rm -f /tmp/compute_{{ test_name }}.csv /tmp/compute_{{ test_name }}.err"
+  delegate_to: localhost
+  when: hypervisor_ip is defined

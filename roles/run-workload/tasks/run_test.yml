@@ -1,8 +1,23 @@
 ---
+- name: "Run {{ run_number }}/{{ num_runs }} — Start metrics for {{ test.name }}"
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/roles/collect-metrics/tasks/start.yml"
+  vars:
+    test_name: "{{ test.name }}_run{{ run_number }}"
+    metrics_output_dir: "{{ results_dir }}/metrics"
+  when: collect_metrics | default(false) | bool
+
 - name: "Run {{ run_number }}/{{ num_runs }} — {{ test.name }}"
   ansible.builtin.shell:
     cmd: "{{ test.cmd }} 2>&1 | tee {{ results_dir }}/run{{ run_number }}/{{ test.name }}.log"
   register: test_result
+
+- name: "Run {{ run_number }}/{{ num_runs }} — Stop metrics for {{ test.name }}"
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/roles/collect-metrics/tasks/stop.yml"
+  vars:
+    test_name: "{{ test.name }}_run{{ run_number }}"
+    metrics_output_dir: "{{ results_dir }}/metrics"
+    local_metrics_dir: "{{ playbook_dir }}/results/{{ workload_name }}-{{ run_timestamp }}/metrics"
+  when: collect_metrics | default(false) | bool
 
 - name: "Run {{ run_number }}/{{ num_runs }} — {{ test.name }} result"
   ansible.builtin.debug:

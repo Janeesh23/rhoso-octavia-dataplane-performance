@@ -4,9 +4,10 @@
   connection: local
   gather_facts: false
   tasks:
-    - name: Install python3-openstackclient
-      ansible.builtin.pip:
+    - name: Install python-openstackclient
+      ansible.builtin.dnf:
         name: python3-openstackclient
+        state: present
 
 - name: Create OpenStack networks and router
   hosts: localhost

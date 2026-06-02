@@ -22,6 +22,18 @@
   ansible.builtin.debug:
     msg: "Results will be saved to {{ results_dir }}"
 
+- name: Create metrics directory
+  ansible.builtin.file:
+    path: "{{ results_dir }}/metrics"
+    state: directory
+    mode: "0755"
+  when: collect_metrics | default(false) | bool
+
+- name: Set up metrics collection (hypervisor + prometheus)
+  ansible.builtin.include_role:
+    name: collect-metrics
+  when: collect_metrics | default(false) | bool
+
 - name: Run workload iteration
   ansible.builtin.include_tasks: run_iteration.yml
   loop: "{{ range(1, num_runs | int + 1) | list }}"
@@ -54,6 +66,14 @@
     mode: pull
   delegate_to: localhost
 
+- name: Generate HTML performance report
+  ansible.builtin.command:
+    cmd: >-
+      python3 {{ playbook_dir }}/generate-report.py
+      {{ playbook_dir }}/results/{{ workload_name }}-{{ run_timestamp }}
+      -o {{ playbook_dir }}/results/{{ workload_name }}-{{ run_timestamp }}/report.html
+  delegate_to: localhost
+
 - name: Display summary
   ansible.builtin.command:
     cmd: cat {{ playbook_dir }}/results/{{ workload_name }}-{{ run_timestamp }}/summary.csv
@@ -63,3 +83,7 @@
 - name: Show results
   ansible.builtin.debug:
     msg: "{{ summary_content.stdout_lines }}"
+
+- name: Report location
+  ansible.builtin.debug:
+    msg: "HTML report: {{ playbook_dir }}/results/{{ workload_name }}-{{ run_timestamp }}/report.html"

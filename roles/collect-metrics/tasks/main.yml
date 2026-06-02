@@ -1,0 +1,106 @@
+---
+# Prepares hypervisor access and copies collector scripts.
+# Called once before workload iterations begin.
+
+- name: Extract hypervisor SSH key from OpenShift secret
+  ansible.builtin.shell:
+    cmd: >-
+      oc get secret {{ hypervisor_ssh_key_secret }}
+      -o jsonpath='{.data.ssh-privatekey}'
+      | base64 -d > {{ hypervisor_ssh_key_path }}
+  delegate_to: localhost
+  changed_when: true
+
+- name: Set SSH key permissions
+  ansible.builtin.file:
+    path: "{{ hypervisor_ssh_key_path }}"
+    mode: "0400"
+  delegate_to: localhost
+
+- name: Get amphora ID from load balancer
+  ansible.builtin.shell:
+    cmd: >-
+      openstack loadbalancer amphora list --os-cloud {{ os_cloud }}
+      --loadbalancer {{ lb_name }} -f value -c id
+      | head -1
+  register: amphora_id_result
+  delegate_to: localhost
+  changed_when: false
+
+- name: Get amphora compute ID
+  ansible.builtin.command:
+    cmd: >-
+      openstack loadbalancer amphora show --os-cloud {{ os_cloud }}
+      {{ amphora_id_result.stdout | trim }} -f value -c compute_id
+  register: amphora_compute_id
+  delegate_to: localhost
+  changed_when: false
+  when: amphora_id_result.stdout | trim != ''
+
+- name: Get amphora host (hypervisor hostname)
+  ansible.builtin.command:
+    cmd: >-
+      openstack server show --os-cloud {{ os_cloud }}
+      {{ amphora_compute_id.stdout | trim }} -f value -c OS-EXT-SRV-ATTR:host
+  register: amphora_host_raw
+  delegate_to: localhost
+  changed_when: false
+  failed_when: false
+  when: amphora_compute_id.stdout is defined and amphora_compute_id.stdout | trim != ''
+
+- name: Get hypervisor IP from hostname
+  ansible.builtin.shell:
+    cmd: >-
+      openstack hypervisor list --os-cloud {{ os_cloud }} -f value -c "Hypervisor Hostname" -c "Host IP"
+      | awk '$1 == "{{ amphora_host_raw.stdout | trim }}" { print $2 }'
+  register: hypervisor_ip_raw
+  delegate_to: localhost
+  changed_when: false
+  when: amphora_host_raw.stdout is defined and amphora_host_raw.rc == 0
+
+- name: Set hypervisor facts
+  ansible.builtin.set_fact:
+    hypervisor_ip: "{{ hypervisor_ip_raw.stdout | trim }}"
+  when: hypervisor_ip_raw is defined and hypervisor_ip_raw.stdout is defined and hypervisor_ip_raw.stdout | trim != ''
+
+- name: Copy compute metrics collector to hypervisor
+  ansible.builtin.shell:
+    cmd: >-
+      scp -i {{ hypervisor_ssh_key_path }} -o StrictHostKeyChecking=no
+      {{ playbook_dir }}/collect-compute-metrics.sh
+      {{ hypervisor_user }}@{{ hypervisor_ip }}:/tmp/collect-compute-metrics.sh
+  delegate_to: localhost
+  when: hypervisor_ip is defined
+
+- name: Validate compute collector on hypervisor
+  ansible.builtin.shell:
+    cmd: >-
+      ssh -i {{ hypervisor_ssh_key_path }} -o StrictHostKeyChecking=no
+      {{ hypervisor_user }}@{{ hypervisor_ip }}
+      'timeout 3 bash /tmp/collect-compute-metrics.sh 1 2>&1 | head -5'
+  register: compute_preflight
+  delegate_to: localhost
+  when: hypervisor_ip is defined
+  failed_when: false
+
+- name: Display compute collector pre-flight result
+  ansible.builtin.debug:
+    msg: >-
+      Compute collector pre-flight:
+      {{ 'PASS' if (compute_preflight.stdout_lines | default([]) | select('match', '^timestamp,') | list | length > 0)
+      else 'FAIL — no CSV header found' }}.
+      Output={{ compute_preflight.stdout | default('(empty)') }}
+  when: hypervisor_ip is defined
+
+- name: Copy Prometheus scraper to client
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/scrape-amphora-prometheus.py"
+    dest: "/tmp/scrape-amphora-prometheus.py"
+    mode: "0755"
+
+- name: Display metric collection setup
+  ansible.builtin.debug:
+    msg: >-
+      Metrics collection ready: hypervisor={{ hypervisor_ip | default('N/A') }},
+      prometheus=http://{{ vip }}:{{ prometheus_listener_port }}/metrics,
+      interval={{ metrics_interval }}s

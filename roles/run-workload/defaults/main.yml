@@ -7,3 +7,4 @@ wrk_bin: ~/wrk/wrk
 results_base_dir: ~/results
 delay_between_tests: 300
 num_runs: 1
+collect_metrics: false

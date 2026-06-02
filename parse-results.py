@@ -199,14 +199,6 @@ def write_csv(workload_name, runs, all_test_names, test_data, out):
                 stats['std_dev_pct'],
                 *[round(v, 2) for v in values]
             ])
-        if data['rtt_mean_us']:
-            stats = compute_stats(data['rtt_mean_us'])
-            writer.writerow([
-                test_name, 'rtt_mean_us',
-                stats['avg'], stats['min'], stats['max'], stats['std_dev'],
-                stats['std_dev_pct'],
-                *[round(v, 2) for v in data['rtt_mean_us']]
-            ])
     writer.writerow([])
     writer.writerow(['--- Per-test summary (req/s) ---'])
     writer.writerow(['test', 'avg', 'min', 'max', 'std_dev', 'cv_pct'])
@@ -248,15 +240,6 @@ def write_tables(workload_name, runs, all_test_names, test_data, out):
                 stats['std_dev_pct'],
                 *[round(v, 2) for v in values]
             ])
-        if data['rtt_mean_us']:
-            stats = compute_stats(data['rtt_mean_us'])
-            rows.append([
-                test_name, 'rtt_mean_us',
-                stats['avg'], stats['min'], stats['max'], stats['std_dev'],
-                stats['std_dev_pct'],
-                *[round(v, 2) for v in data['rtt_mean_us']]
-            ])
-
     print_table("Detailed Results", headers, rows, out)
 
     summary_headers = ['Test', 'Avg', 'Min', 'Max', 'Std Dev', 'CV %']
