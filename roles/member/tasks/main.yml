@@ -76,6 +76,7 @@
     security_groups:
       - "{{ security_group_name }}"
     availability_zone: "member{{ idx + 1 }}_az"
+    auto_ip: false
     wait: true
     state: present
   loop: "{{ member_names }}"

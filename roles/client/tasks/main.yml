@@ -86,8 +86,8 @@
     security_groups:
       - "{{ security_group_name }}"
     availability_zone: "{{ client_az }}"
+    auto_ip: false
     wait: true
-    timeout: 300
     state: present
   loop: "{{ client_names }}"
   register: client_servers
