@@ -6,7 +6,11 @@ keypair_private_key_path: "~/.ssh/id_rsa.me"
 keypair_public_key_path: "~/.ssh/id_rsa.me.pub"
 
 image_name: centos-9-stream
-flavor_name: f2
+
+# Must match client role when overridden (-e vm_vcpus=...). Client creates the flavor.
+vm_vcpus: 32
+flavor_name: "f-{{ vm_vcpus }}vcpu"
+
 member_network_name: member-network
 external_network_name: public
 security_group_name: member-sg

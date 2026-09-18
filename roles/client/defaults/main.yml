@@ -6,7 +6,19 @@ keypair_private_key_path: "~/.ssh/id_rsa.me"
 keypair_public_key_path: "~/.ssh/id_rsa.me.pub"
 
 image_name: centos-9-stream
-flavor_name: f2
+
+# Single knob for client/member Nova flavor size (override with -e vm_vcpus=4).
+# RAM defaults to 1 GB per vCPU; override independently with -e vm_ram_gb=8.
+vm_vcpus: 32
+vm_ram_gb: "{{ vm_vcpus | int }}"
+vm_disk_gb: 10
+flavor_name: "f-{{ vm_vcpus }}vcpu"
+flavors:
+  - name: "{{ flavor_name }}"
+    ram: "{{ (vm_ram_gb | int) * 1024 }}"
+    vcpus: "{{ vm_vcpus | int }}"
+    disk: "{{ vm_disk_gb | int }}"
+
 client_network_name: vip-network
 external_network_name: public
 security_group_name: vip-sg
@@ -14,16 +26,6 @@ client_az: client_az
 
 client_names:
   - kakashi-client1
-
-flavors:
-  - name: f1
-    ram: 16384
-    vcpus: 16
-    disk: 10
-  - name: f2
-    ram: 32768
-    vcpus: 32
-    disk: 10
 
 security_group_rules:
   - protocol: tcp

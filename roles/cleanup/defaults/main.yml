@@ -30,9 +30,10 @@ keypair_public_key_path: "~/.ssh/id_rsa.me.pub"
 
 image_name: centos-9-stream
 
+# Must match flavor_name created by the client role (pass same -e vm_vcpus=...).
+vm_vcpus: 32
 compute_flavors:
-  - f1
-  - f2
+  - "f-{{ vm_vcpus }}vcpu"
 
 amphora_vcpu_counts:
   - 2
