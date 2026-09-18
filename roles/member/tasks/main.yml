@@ -1,4 +1,14 @@
 ---
+- name: Create flavors
+  openstack.cloud.compute_flavor:
+    cloud: "{{ os_cloud }}"
+    name: "{{ item.name }}"
+    ram: "{{ item.ram }}"
+    vcpus: "{{ item.vcpus }}"
+    disk: "{{ item.disk }}"
+    state: present
+  loop: "{{ flavors }}"
+
 - name: Delete security group if it exists
   openstack.cloud.security_group:
     cloud: "{{ os_cloud }}"

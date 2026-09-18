@@ -6,7 +6,14 @@ keypair_private_key_path: "~/.ssh/id_rsa.me"
 keypair_public_key_path: "~/.ssh/id_rsa.me.pub"
 
 image_name: centos-9-stream
-flavor_name: f2
+
+flavor_name: "f-{{ member_vm_vcpus }}vcpu"
+flavors:
+  - name: "{{ flavor_name }}"
+    ram: "{{ (member_vm_ram_gb | int) * 1024 }}"
+    vcpus: "{{ member_vm_vcpus | int }}"
+    disk: "{{ member_vm_disk_gb | int }}"
+
 member_network_name: member-network
 external_network_name: public
 security_group_name: member-sg
