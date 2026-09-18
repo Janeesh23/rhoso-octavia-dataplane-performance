@@ -235,12 +235,21 @@
   loop: "{{ amphora_vcpu_counts }}"
   ignore_errors: true
 
-- name: Delete compute flavors
+- name: Discover test compute flavors (f-*vcpu pattern)
+  ansible.builtin.shell:
+    cmd: >-
+      openstack flavor list --os-cloud {{ os_cloud }}
+      -f value -c Name | grep '^f-.*vcpu$'
+  register: discovered_flavors
+  changed_when: false
+  failed_when: false
+
+- name: Delete discovered compute flavors
   openstack.cloud.compute_flavor:
     cloud: "{{ os_cloud }}"
     name: "{{ item }}"
     state: absent
-  loop: "{{ compute_flavors }}"
+  loop: "{{ discovered_flavors.stdout_lines | default([]) }}"
   ignore_errors: true
 
 # --- Step 8: Delete Barbican secret ---

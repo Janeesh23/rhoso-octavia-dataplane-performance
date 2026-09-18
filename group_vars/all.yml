@@ -18,6 +18,16 @@ member_names:
 member_network_name: member-network
 external_network_name: public
 
+# Client VM sizing (override with -e client_vm_vcpus=4)
+client_vm_vcpus: 32
+client_vm_ram_gb: "{{ client_vm_vcpus | int }}"
+client_vm_disk_gb: 10
+
+# Member VM sizing (override with -e member_vm_vcpus=4)
+member_vm_vcpus: 32
+member_vm_ram_gb: "{{ member_vm_vcpus | int }}"
+member_vm_disk_gb: 10
+
 # Metrics collection settings
 metrics_interval: 1
 hypervisor_ssh_key_secret: dataplane-ansible-ssh-private-key-secret

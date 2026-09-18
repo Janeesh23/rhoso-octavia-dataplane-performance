@@ -1,4 +1,13 @@
 ---
+- name: Ensure member compute flavor exists
+  openstack.cloud.compute_flavor:
+    cloud: "{{ os_cloud }}"
+    name: "{{ flavor_name }}"
+    ram: "{{ (member_vm_ram_gb | int) * 1024 }}"
+    vcpus: "{{ member_vm_vcpus | int }}"
+    disk: "{{ member_vm_disk_gb | int }}"
+    state: present
+
 - name: Delete security group if it exists
   openstack.cloud.security_group:
     cloud: "{{ os_cloud }}"

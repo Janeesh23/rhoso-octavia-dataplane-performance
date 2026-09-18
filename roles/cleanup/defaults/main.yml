@@ -30,10 +30,6 @@ keypair_public_key_path: "~/.ssh/id_rsa.me.pub"
 
 image_name: centos-9-stream
 
-compute_flavors:
-  - f1
-  - f2
-
 amphora_vcpu_counts:
   - 2
   - 4
