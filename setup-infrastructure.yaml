@@ -4,9 +4,12 @@
   connection: local
   gather_facts: false
   tasks:
-    - name: Install python-openstackclient
+    - name: Install OpenStack CLI packages
       ansible.builtin.dnf:
-        name: python3-openstackclient
+        name:
+          - python3-openstackclient
+          - python3-octaviaclient
+          - python3-barbicanclient
         state: present
 
 - name: Create OpenStack networks and router
