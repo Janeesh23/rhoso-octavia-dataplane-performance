@@ -18,6 +18,14 @@ member_names:
 member_network_name: member-network
 external_network_name: public
 
+# Payload sizes to run (add/remove names to control which tests execute).
+# Each workload uses sizes it supports; unsupported sizes are skipped.
+# Full set: 0b-keepalive, 0b-nokeepalive, 128b, 1k, 10k, 128k, 512k, 1m
+payload_sizes:
+  - 0b-keepalive
+  - 0b-nokeepalive
+  - 1k
+
 # Metrics collection settings
 metrics_interval: 1
 hypervisor_ssh_key_secret: dataplane-ansible-ssh-private-key-secret
