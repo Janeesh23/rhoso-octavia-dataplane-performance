@@ -1,4 +1,11 @@
 ---
+- name: Configure OpenStack cloud authentication
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  roles:
+    - configure-cloud-auth
+
 - name: Install OpenStack CLI dependencies
   hosts: localhost
   connection: local

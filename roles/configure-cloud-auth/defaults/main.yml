@@ -1,0 +1,7 @@
+---
+clouds_yaml_path: "{{ ansible_env.HOME }}/.config/openstack/clouds.yaml"
+os_cloud_name: default
+osp_secret_name: osp-secret
+osp_secret_namespace: openstack
+keystone_route_name: keystone-public
+keystone_route_namespace: openstack
