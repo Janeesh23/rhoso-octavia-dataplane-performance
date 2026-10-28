@@ -64,15 +64,19 @@ ansible-playbook setup-infrastructure.yaml
 
 This runs the following in order:
 
-1. **create-network** — Tenant networks (vip, member, public), subnets, router
-2. **create-az** — Host aggregates and Octavia availability zone
-3. **prepare-image** — Upload CentOS 9 Stream image
-4. **client** — Create client VM (kakashi-client1) with floating IP
-5. **member** — Create member VMs (naruto, sasuke, sakura) with floating IPs
-6. **cert-generation** — Generate TLS certificates for member and LB
-7. **barbican-secret** — Store TLS secret in Barbican
-8. **create-flavor** — Create Nova compute flavors and Octavia LB flavors
-9. **build-tools** — Install h2load, wrk, nginx, iperf, httpterm on all VMs
+1. **Install python-openstackclient** — Ensures the OpenStack CLI is available
+2. **create-network** — Tenant networks (vip, member, public), subnets, router
+3. **create-az** — Host aggregates and Octavia availability zone
+4. **prepare-image** — Upload CentOS 9 Stream image
+5. **client** — Create client VM (kakashi-client1) with floating IP
+6. **member** — Create member VMs (naruto-member1, sasuke-member2, sakura-member3) with floating IPs
+7. **cert-generation** — Generate member TLS certificates (`/tmp/member_certs`)
+8. **cert-generation** — Generate LB TLS certificates (`/tmp/lb_certs`)
+9. **barbican-secret** — Store TLS secret in Barbican
+10. **create-flavor** — Create Nova compute flavors and Octavia LB flavors
+11. **Build dynamic inventory** — Discover floating IPs, add hosts, and write `~/.ssh/config` entries
+12. **Wait for SSH** — Wait up to 300s for all VMs to become reachable
+13. **build-tools** — Install h2load, wrk, nginx, iperf, httpterm on all VMs
 
 ### Step 2: Generate Inventory
 
