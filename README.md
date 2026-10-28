@@ -257,7 +257,7 @@ Key variables in `group_vars/all.yml`:
 | `lb_flavor` | `standalone-4vcpus-mq` | Octavia LB flavor |
 | `lb_az` | `octavia` | Octavia availability zone |
 | `connection_limit` | `1000000` | Listener connection limit |
-| `member_names` | naruto, sasuke, sakura | Backend member VM names |
+| `member_names` | naruto-member1, sasuke-member2, sakura-member3 | Backend member VM names |
 | `metrics_interval` | `1` | Metrics sampling interval in seconds |
 | `hypervisor_ssh_key_secret` | `dataplane-ansible-ssh-private-key-secret` | OpenShift secret containing hypervisor SSH key |
 | `hypervisor_user` | `cloud-admin` | SSH user on the hypervisor |
