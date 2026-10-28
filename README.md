@@ -4,12 +4,13 @@ Ansible automation for benchmarking Red Hat OpenStack Services on OpenShift (RHO
 
 ## Prerequisites
 
-- OpenStack CLI configured (`~/.config/openstack/clouds.yaml` with `default` cloud)
-- `oc` access to the OpenShift cluster running RHOSO
-- Ansible with required collections installed (see below)
-- SSH access from the bastion host to the OpenStack tenant networks
+- **Python 3.6+** — Required for `parse-results.py`, `generate-report.py`, and `scrape-amphora-prometheus.py`
+- **Ansible 2.14+** — With required collections installed (see below)
+- **OpenStack CLI** configured (`~/.config/openstack/clouds.yaml` with a `default` cloud entry)
+- **`oc`** access to the OpenShift cluster running RHOSO
+- **SSH access** from the machine running the playbooks (bastion host) to the OpenStack tenant networks, so Ansible can reach the client and member VMs via their floating IPs
 
-Install dependencies:
+Install Ansible collection dependencies:
 
 ```bash
 ansible-galaxy collection install -r requirements.yml
@@ -287,6 +288,10 @@ Workload settings in `roles/run-workload/defaults/main.yml`:
 
 | Variable | Default | Description |
 |---|---|---|
+| `os_cloud` | `default` | OpenStack cloud name from `clouds.yaml` |
+| `h2load_bin` | `~/nghttp2/src/h2load` | Path to h2load binary on client VM |
+| `wrk_bin` | `~/wrk/wrk` | Path to wrk binary on client VM |
+| `results_base_dir` | `~/results` | Base directory for results on client VM |
 | `num_runs` | `1` | Number of times to repeat each test |
 | `collect_metrics` | `false` | Enable hypervisor + amphora metrics collection |
 | `delay_between_tests` | `300` | Seconds to wait between tests |
