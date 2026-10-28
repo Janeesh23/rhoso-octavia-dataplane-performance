@@ -18,6 +18,8 @@ ansible-galaxy collection install -r requirements.yml
 ## Project Structure
 
 ```
+├── ansible.cfg                   # Ansible configuration (pipelining, timeout, callbacks)
+├── requirements.yml              # Ansible Galaxy collection dependencies
 ├── setup-infrastructure.yaml     # Full infrastructure setup
 ├── cleanup-infrastructure.yaml   # Full infrastructure teardown
 ├── setup-loadbalancers.yaml      # Create LB test scenarios only
@@ -40,6 +42,7 @@ ansible-galaxy collection install -r requirements.yml
     ├── cert-generation/          # Generate TLS certificates
     ├── barbican-secret/          # Store TLS certs in Barbican
     ├── amphora-http/             # Create HTTP load balancer
+    ├── amphora-http-503/         # Create HTTP load balancer with empty pool (503 baseline)
     ├── amphora-tcp/              # Create TCP load balancer
     ├── amphora-https/            # Create HTTPS (TLS termination) load balancer
     ├── amphora-https-reencryption/ # Create HTTPS re-encryption load balancer
