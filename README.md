@@ -16,6 +16,31 @@ Install Ansible collection dependencies:
 ansible-galaxy collection install -r requirements.yml
 ```
 
+## Quick Start
+
+```bash
+# 1. Install dependencies
+ansible-galaxy collection install -r requirements.yml
+
+# 2. Provision infrastructure (networks, VMs, flavors, tools)
+ansible-playbook setup-infrastructure.yaml
+
+# 3. Generate static inventory for workload runs
+ansible-playbook generate-inventory.yaml
+
+# 4. Run all benchmarks
+ansible-playbook -i inventory run-workloads.yaml
+
+# 5. Run a single benchmark with metrics collection
+ansible-playbook -i inventory run-workloads.yaml --tags amphora-http \
+  -e collect_metrics=true -e num_runs=3
+
+# 6. Cleanup when done
+ansible-playbook cleanup-infrastructure.yaml
+```
+
+See the [Execution Flow](#execution-flow) section below for detailed explanations of each step.
+
 ## Project Structure
 
 ```
