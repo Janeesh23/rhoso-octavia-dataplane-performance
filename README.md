@@ -103,6 +103,22 @@ ansible_ssh_private_key_file=~/.ssh/id_rsa.me
 ansible_ssh_common_args='-o StrictHostKeyChecking=no'
 ```
 
+### Optional: Pre-create Load Balancers
+
+`setup-loadbalancers.yaml` creates load balancers without running any benchmarks. This is useful for pre-provisioning or validating LB creation independently:
+
+```bash
+ansible-playbook setup-loadbalancers.yaml
+```
+
+Create a specific LB type only:
+
+```bash
+ansible-playbook setup-loadbalancers.yaml --tags amphora-https
+```
+
+> **Note:** This step is optional. `run-workloads.yaml` (Step 3) automatically creates the required load balancer before each workload run.
+
 ### Step 3: Run Workloads
 
 Each workload creates its load balancer, then runs benchmarks from the client VM. Results are saved to `~/results/<workload_name>/` on the client.
