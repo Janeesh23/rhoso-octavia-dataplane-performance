@@ -1,0 +1,88 @@
+---
+- name: Check if clouds.yaml already has a configured cloud
+  block:
+    - name: Read existing clouds.yaml
+      ansible.builtin.slurp:
+        src: "{{ clouds_yaml_path }}"
+      register: existing_clouds
+      ignore_errors: true
+
+    - name: Check if default cloud is configured
+      ansible.builtin.set_fact:
+        cloud_already_configured: >-
+          {{ existing_clouds is succeeded
+             and existing_clouds.content is defined
+             and (existing_clouds.content | b64decode | from_yaml).clouds[os_cloud_name] is defined
+             and (existing_clouds.content | b64decode | from_yaml).clouds[os_cloud_name].auth.password is defined }}
+      ignore_errors: true
+
+    - name: Override to false on any parse error
+      ansible.builtin.set_fact:
+        cloud_already_configured: false
+      when: cloud_already_configured is not defined or (cloud_already_configured is not true and cloud_already_configured is not false)
+
+- name: Skip message
+  ansible.builtin.debug:
+    msg: "clouds.yaml already configured with '{{ os_cloud_name }}' cloud — skipping auto-configuration"
+  when: cloud_already_configured | bool
+
+- name: Auto-configure clouds.yaml from OCP cluster
+  when: not (cloud_already_configured | bool)
+  block:
+    - name: Get Keystone public route URL
+      ansible.builtin.command:
+        cmd: oc get route {{ keystone_route_name }} -n {{ keystone_route_namespace }} -o jsonpath='{.spec.host}'
+      register: keystone_host
+      changed_when: false
+
+    - name: Get admin password from osp-secret
+      ansible.builtin.shell:
+        cmd: oc get secret {{ osp_secret_name }} -n {{ osp_secret_namespace }} -o jsonpath='{.data.AdminPassword}' | base64 -d
+      register: admin_password
+      changed_when: false
+      no_log: true
+
+    - name: Determine TLS scheme from route
+      ansible.builtin.command:
+        cmd: oc get route {{ keystone_route_name }} -n {{ keystone_route_namespace }} -o jsonpath='{.spec.tls.termination}'
+      register: tls_termination
+      changed_when: false
+      ignore_errors: true
+
+    - name: Set auth_url
+      ansible.builtin.set_fact:
+        keystone_auth_url: "{{ 'https' if (tls_termination.stdout | default('')) | length > 0 else 'http' }}://{{ keystone_host.stdout }}"
+
+    - name: Create clouds.yaml directory
+      ansible.builtin.file:
+        path: "{{ clouds_yaml_path | dirname }}"
+        state: directory
+        mode: "0700"
+
+    - name: Write clouds.yaml
+      ansible.builtin.copy:
+        dest: "{{ clouds_yaml_path }}"
+        mode: "0600"
+        content: |
+          clouds:
+            {{ os_cloud_name }}:
+              auth:
+                auth_url: {{ keystone_auth_url }}
+                project_name: admin
+                username: admin
+                password: {{ admin_password.stdout }}
+                user_domain_name: Default
+                project_domain_name: Default
+              region_name: regionOne
+              identity_api_version: 3
+              verify: false
+
+    - name: Verify authentication works
+      ansible.builtin.command:
+        cmd: openstack --os-cloud {{ os_cloud_name }} token issue -f value -c id
+      register: token_check
+      changed_when: false
+
+    - name: Authentication verified
+      ansible.builtin.debug:
+        msg: "clouds.yaml configured and authentication successful"
